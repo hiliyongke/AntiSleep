@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1C1C2E"/>
+      <stop offset="100%" stop-color="#2D2D44"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <!-- Rounded rect background -->
+  <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230" fill="url(#bg)"/>
+  <!-- Coffee cup body -->
+  <path d="M 340 400 L 340 640 Q 340 720 420 720 L 604 720 Q 684 720 684 640 L 684 400 Z" fill="#FFFFFF" filter="url(#shadow)"/>
+  <!-- Cup rim/highlight -->
+  <ellipse cx="512" cy="400" rx="172" ry="32" fill="#E8E8E8"/>
+  <ellipse cx="512" cy="400" rx="164" ry="26" fill="#FFFFFF"/>
+  <!-- Coffee liquid surface -->
+  <ellipse cx="512" cy="400" rx="148" ry="20" fill="#6B4226"/>
+  <!-- Coffee highlight -->
+  <ellipse cx="512" cy="396" rx="120" ry="12" fill="#8B5E3C"/>
+  <!-- Cup handle -->
+  <path d="M 684 460 Q 784 460 784 540 Q 784 620 684 620" fill="none" stroke="#FFFFFF" stroke-width="48" stroke-linecap="round"/>
+  <path d="M 684 460 Q 784 460 784 540 Q 784 620 684 620" fill="none" stroke="#E8E8E8" stroke-width="32" stroke-linecap="round"/>
+  <!-- Saucer -->
+  <ellipse cx="512" cy="740" rx="200" ry="28" fill="#FFFFFF" filter="url(#shadow)"/>
+  <ellipse cx="512" cy="738" rx="180" ry="22" fill="#E8E8E8"/>
+  <!-- Steam wisp 1 -->
+  <path d="M 460 320 Q 440 260 470 220 Q 500 180 470 140" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+  <!-- Steam wisp 2 -->
+  <path d="M 512 300 Q 532 240 502 200 Q 472 160 502 120" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <!-- Steam wisp 3 -->
+  <path d="M 564 320 Q 544 270 574 230 Q 604 190 574 150" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.4"/>
+</svg>

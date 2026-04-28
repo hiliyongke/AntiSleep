@@ -1,0 +1,31 @@
+[package]
+name = "antisleep"
+version = "0.1.0"
+edition = "2021"
+description = "AntiSleep - Cross-platform screen lock prevention tool"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# macOS specific
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+
+# Windows specific
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_System_Power",
+  "Win32_Foundation",
+] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
