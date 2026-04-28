@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
+import { formatCombo } from '../../lib/format'
 import { RotateCcw } from 'lucide-react'
 
 export function AboutSettings() {
@@ -183,11 +184,4 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function formatCombo(combo: string): string {
-  return combo
-    .replace(/CommandOrControl/g, '⌘')
-    .replace(/Command/g, '⌘')
-    .replace(/Control/g, '⌃')
-    .replace(/Shift/g, '⇧')
-    .replace(/Alt|Option/g, '⌥')
-}
+

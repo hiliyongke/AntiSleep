@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
+import { formatCombo } from '../../lib/format'
 import type { PreventionMode, DurationOption, ThemePreference } from '../../types'
 
 type ShortcutKey = 'shortcutEnable' | 'shortcutDisable' | 'shortcutScreensaver'
@@ -238,15 +239,6 @@ function ModeOption({ label, desc, active, onClick }: { label: string; desc: str
       <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{desc}</p>
     </button>
   )
-}
-
-function formatCombo(combo: string): string {
-  return combo
-    .replace(/CommandOrControl/g, '⌘')
-    .replace(/Command/g, '⌘')
-    .replace(/Control/g, '⌃')
-    .replace(/Shift/g, '⇧')
-    .replace(/Alt|Option/g, '⌥')
 }
 
 /** Key-capture shortcut row — click to record new shortcut */

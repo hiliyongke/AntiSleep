@@ -6,13 +6,13 @@ import { ThemeSettings } from './ThemeSettings'
 import { SmartSceneSettings } from './SmartSceneSettings'
 import { AboutSettings } from './AboutSettings'
 import { PreviewSettings } from './PreviewSettings'
-import { Settings, Image, ScrollText, Palette, Zap, Info, PanelRightOpen } from 'lucide-react'
+import { Settings, Image, ScrollText, Sparkles, Zap, Info, PanelRightOpen } from 'lucide-react'
 
 const TABS = [
   { id: 'general', name: '通用', icon: Settings },
   { id: 'wallpaper', name: '壁纸', icon: Image },
   { id: 'marquee', name: '文案', icon: ScrollText },
-  { id: 'theme', name: '主题', icon: Palette },
+  { id: 'theme', name: '特效', icon: Sparkles },
   { id: 'smart', name: '智能', icon: Zap },
   { id: 'about', name: '关于', icon: Info },
 ] as const
@@ -45,11 +45,7 @@ export function SettingsPanel() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-                isActive
-                  ? ''
-                  : ''
-              }`}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors"
               style={isActive
                 ? { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-primary)' }
                 : { color: 'var(--text-secondary)' }

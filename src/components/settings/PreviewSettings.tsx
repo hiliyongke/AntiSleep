@@ -98,17 +98,21 @@ function PreviewEffect() {
     }
   }, [theme.current, theme.speed, theme.density, theme.customColor, theme.clockStyle])
 
-  // Resize to container
+  // Resize canvas to match virtual coordinate space (before CSS transform scaling)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const parent = canvas.parentElement
     if (!parent) return
     const handleResize = () => {
-      const rect = parent.getBoundingClientRect()
-      canvas.width = rect.width
-      canvas.height = rect.height
-      if (rendererRef.current) rendererRef.current.resize(canvas.width, canvas.height)
+      // Use offsetWidth/offsetHeight which return CSS layout dimensions
+      // (1920×1080) instead of getBoundingClientRect() which returns
+      // the visual size after CSS transform scaling.
+      const w = parent.offsetWidth
+      const h = parent.offsetHeight
+      canvas.width = w
+      canvas.height = h
+      if (rendererRef.current) rendererRef.current.resize(w, h)
     }
     handleResize()
     const ro = new ResizeObserver(handleResize)
@@ -291,7 +295,7 @@ const VIRTUAL_H = 1080
 
 export function PreviewSettings({ compact = false }: { compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
   const theme = useAppStore((s) => s.theme)
   const marquee = useAppStore((s) => s.marquee)
@@ -379,6 +383,8 @@ export function PreviewSettings({ compact = false }: { compact?: boolean }) {
                 width: VIRTUAL_W,
                 height: VIRTUAL_H,
                 transform: `scale(${scale})`,
+                opacity: scale > 0 ? 1 : 0,
+                transition: 'opacity 0.2s',
                 pointerEvents: 'none',
               }}
             >
@@ -413,7 +419,7 @@ export function PreviewSettings({ compact = false }: { compact?: boolean }) {
       {/* Play/pause toggle */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-          整体效果预览
+          播放控制
         </span>
         <button
           onClick={() => setIsPlaying((p) => !p)}
@@ -447,6 +453,8 @@ export function PreviewSettings({ compact = false }: { compact?: boolean }) {
             width: VIRTUAL_W,
             height: VIRTUAL_H,
             transform: `scale(${scale})`,
+            opacity: scale > 0 ? 1 : 0,
+            transition: 'opacity 0.2s',
             pointerEvents: 'none',
           }}
         >

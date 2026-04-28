@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../../stores/appStore'
 import { listProcessesDetailed } from '../../lib/tauri-commands'
 import type { ProcessInfo } from '../../types'
-import { Search, RefreshCw, Plus, X, Cpu, HardDrive, Check, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search, RefreshCw, Plus, X, Check, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 
 type AddMode = 'browse' | 'manual'
 type SortKey = 'name' | 'pid' | 'cpu' | 'memory'

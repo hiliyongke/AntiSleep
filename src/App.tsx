@@ -101,7 +101,7 @@ function App() {
   return (
     <div className="w-screen h-screen bg-background-medium flex items-center justify-center">
       <div className="text-text-secondary text-sm">
-        AntiSleep is running in the system tray
+        AntiSleep 正在系统托盘中运行
       </div>
     </div>
   )

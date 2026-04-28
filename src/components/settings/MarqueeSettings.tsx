@@ -35,7 +35,7 @@ export function MarqueeSettings() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>跑马灯文案</h2>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>文案设置</h2>
         <button
           onClick={() => setMarqueeEnabled(!marquee.enabled)}
           className={`fluent-toggle ${marquee.enabled ? 'fluent-toggle-active' : ''}`}
@@ -295,11 +295,11 @@ function ItemRow({
           <div className="flex items-center gap-2">
             <label className="text-xs w-16" style={{ color: 'var(--text-tertiary)' }}>动效</label>
             <select
-              value={item.animation ?? 'none'}
-              onChange={(e) => onUpdate({ animation: e.target.value as TextAnimation })}
+              value={item.animation ?? ''}
+              onChange={(e) => onUpdate({ animation: e.target.value === '' ? undefined : (e.target.value as TextAnimation) })}
               className="fluent-input flex-1"
             >
-              <option value="none">跟随全局</option>
+              <option value="">跟随全局</option>
               <option value="none">无</option>
               <option value="pulse">呼吸缩放</option>
               <option value="bounce">弹跳</option>

@@ -127,9 +127,11 @@ export class ClockRenderer implements ThemeRenderer {
   private renderAnalog(ctx: CanvasRenderingContext2D, color: string): void {
     const w = this.canvas!.width
     const h = this.canvas!.height
+    const radius = Math.min(w, h) * 0.14
+    // Reserve space below dial for digital time + date
+    const bottomReserve = radius * 1.6
     const cx = w / 2
-    const cy = h / 2
-    const radius = Math.min(w, h) * 0.26
+    const cy = Math.min(h / 2, h - bottomReserve)
 
     const now = new Date()
     const hours = now.getHours() % 12
@@ -139,81 +141,196 @@ export class ClockRenderer implements ThemeRenderer {
     const smoothSeconds = seconds + ms / 1000
 
     const accentColor = this.config?.customColor || '#0078D4'
+    const s = (v: number) => v * (radius / 180)
 
-    // Outer subtle ring
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2)
-    ctx.strokeStyle = color + '12'
-    ctx.lineWidth = 8
-    ctx.stroke()
+    // ── Subtle ambient glow ──
+    const ambientGrad = ctx.createRadialGradient(cx, cy, radius * 0.5, cx, cy, radius * 1.8)
+    ambientGrad.addColorStop(0, color + '06')
+    ambientGrad.addColorStop(1, color + '00')
+    ctx.fillStyle = ambientGrad
+    ctx.fillRect(0, 0, w, h)
 
-    // Clock face ring
+    // ── Watch face — subtle gradient like frosted glass ──
+    const faceGrad = ctx.createRadialGradient(cx, cy - radius * 0.3, 0, cx, cy, radius)
+    faceGrad.addColorStop(0, color + '0C')
+    faceGrad.addColorStop(0.7, color + '06')
+    faceGrad.addColorStop(1, color + '10')
     ctx.beginPath()
     ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-    ctx.strokeStyle = color + '40'
-    ctx.lineWidth = 5
+    ctx.fillStyle = faceGrad
+    ctx.fill()
+
+    // ── Outer ring — thin, elegant ──
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.strokeStyle = color + '30'
+    ctx.lineWidth = s(2)
     ctx.stroke()
 
-    // Hour markers
+    // ── Minute dots — 60 tiny dots around the edge ──
     for (let i = 0; i < 60; i++) {
       const angle = (i * Math.PI * 2) / 60 - Math.PI / 2
+      const dotR = radius - s(6)
+      const dx = cx + Math.cos(angle) * dotR
+      const dy = cy + Math.sin(angle) * dotR
       const isHour = i % 5 === 0
-      const isMajor = i % 15 === 0
-      const innerR = isHour ? (isMajor ? radius - 20 : radius - 14) : radius - 8
-      const outerR = isHour ? (isMajor ? radius - 4 : radius - 6) : radius - 5
       ctx.beginPath()
-      ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR)
-      ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR)
-      ctx.strokeStyle = isHour ? (isMajor ? color + 'DD' : color + '88') : color + '33'
-      ctx.lineWidth = isHour ? (isMajor ? 3 : 2) : 1
-      ctx.lineCap = 'round'
-      ctx.stroke()
+      ctx.arc(dx, dy, isHour ? s(2.5) : s(0.8), 0, Math.PI * 2)
+      ctx.fillStyle = isHour ? color + '99' : color + '25'
+      ctx.fill()
     }
 
-    // Hour hand
+    // ── Hour numbers — 12, 3, 6, 9 ──
+    const numRadius = radius - s(26)
+    const numSize = Math.max(10, radius * 0.15)
+    ctx.font = `300 ${numSize}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const majorNums = [12, 3, 6, 9]
+    for (const n of majorNums) {
+      const angle = (n * Math.PI * 2) / 12 - Math.PI / 2
+      const nx = cx + Math.cos(angle) * numRadius
+      const ny = cy + Math.sin(angle) * numRadius
+      ctx.fillStyle = color + 'CC'
+      ctx.fillText(String(n), nx, ny + s(1))
+    }
+
+    // ── Date window at 3 o'clock position ──
+    const dateX = cx + radius * 0.42
+    const dateY = cy
+    const dateStr = String(now.getDate())
+    const dateFontSize = Math.max(8, radius * 0.085)
+    const dateBoxW = s(22)
+    const dateBoxH = s(18)
+    // Date box background
+    ctx.fillStyle = color + '10'
+    this.roundRect(ctx, dateX - dateBoxW / 2, dateY - dateBoxH / 2, dateBoxW, dateBoxH, s(4))
+    ctx.fill()
+    ctx.strokeStyle = color + '18'
+    ctx.lineWidth = s(0.8)
+    this.roundRect(ctx, dateX - dateBoxW / 2, dateY - dateBoxH / 2, dateBoxW, dateBoxH, s(4))
+    ctx.stroke()
+    // Date text
+    ctx.font = `500 ${dateFontSize}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = color + 'AA'
+    ctx.fillText(dateStr, dateX, dateY + s(0.5))
+
+    // ── Hour hand — elegant tapered with rounded tip ──
     const hourAngle = ((hours + minutes / 60) * Math.PI * 2) / 12 - Math.PI / 2
-    this.drawHand(cx, cy, hourAngle, radius * 0.55, 5.5, color + 'EE')
+    ctx.save()
+    ctx.shadowColor = color + '20'
+    ctx.shadowBlur = s(8)
+    ctx.shadowOffsetY = s(2)
+    this.drawTaperedHand(ctx, cx, cy, hourAngle, radius * 0.5, s(7), s(2.5), color + 'EE')
+    ctx.restore()
 
-    // Minute hand
+    // ── Minute hand — longer, thinner ──
     const minuteAngle = ((minutes + smoothSeconds / 60) * Math.PI * 2) / 60 - Math.PI / 2
-    this.drawHand(cx, cy, minuteAngle, radius * 0.78, 3.2, color + 'CC')
+    ctx.save()
+    ctx.shadowColor = color + '18'
+    ctx.shadowBlur = s(6)
+    ctx.shadowOffsetY = s(1.5)
+    this.drawTaperedHand(ctx, cx, cy, minuteAngle, radius * 0.73, s(5), s(1.5), color + 'DD')
+    ctx.restore()
 
-    // Second hand with accent color
+    // ── Second hand — thin line with counterweight + circle ──
     const secondAngle = (smoothSeconds * Math.PI * 2) / 60 - Math.PI / 2
-    this.drawHand(cx, cy, secondAngle, radius * 0.88, 2, accentColor)
-    this.drawHand(cx, cy, secondAngle + Math.PI, radius * 0.18, 2, accentColor)
-
-    // Center dot
+    // Counterweight (tail)
     ctx.beginPath()
-    ctx.arc(cx, cy, 5.5, 0, Math.PI * 2)
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(
+      cx + Math.cos(secondAngle + Math.PI) * radius * 0.18,
+      cy + Math.sin(secondAngle + Math.PI) * radius * 0.18,
+    )
+    ctx.strokeStyle = accentColor + 'BB'
+    ctx.lineWidth = s(2)
+    ctx.lineCap = 'round'
+    ctx.stroke()
+    // Main line
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(
+      cx + Math.cos(secondAngle) * radius * 0.82,
+      cy + Math.sin(secondAngle) * radius * 0.82,
+    )
+    ctx.strokeStyle = accentColor + 'DD'
+    ctx.lineWidth = s(1.2)
+    ctx.lineCap = 'round'
+    ctx.stroke()
+    // Tip circle
+    const tipX = cx + Math.cos(secondAngle) * radius * 0.7
+    const tipY = cy + Math.sin(secondAngle) * radius * 0.7
+    ctx.beginPath()
+    ctx.arc(tipX, tipY, s(3), 0, Math.PI * 2)
+    ctx.strokeStyle = accentColor + '99'
+    ctx.lineWidth = s(1)
+    ctx.stroke()
+
+    // ── Center dot ──
+    ctx.beginPath()
+    ctx.arc(cx, cy, s(4), 0, Math.PI * 2)
     ctx.fillStyle = accentColor
     ctx.fill()
     ctx.beginPath()
-    ctx.arc(cx, cy, 2.5, 0, Math.PI * 2)
+    ctx.arc(cx, cy, s(1.8), 0, Math.PI * 2)
     ctx.fillStyle = color
     ctx.fill()
 
-    // Digital time below
+    // ── Digital time below the dial ──
     const timeStr = now.toLocaleTimeString('zh-CN', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
     })
-    const dateStr = now.toLocaleDateString('zh-CN', {
+    const fullDateStr = now.toLocaleDateString('zh-CN', {
       month: 'long',
       day: 'numeric',
-      weekday: 'long',
+      weekday: 'short',
     })
 
-    const fontSize = Math.max(14, radius * 0.14)
-    ctx.font = `300 ${fontSize}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
+    const digitalFontSize = Math.max(10, radius * 0.15)
+    const timeY = cy + radius + s(18)
+    ctx.font = `200 ${digitalFontSize}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
     ctx.textAlign = 'center'
-    ctx.fillStyle = color + '88'
-    ctx.fillText(timeStr, cx, cy + radius + 40)
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = color + '99'
+    ctx.fillText(timeStr, cx, timeY)
 
-    ctx.font = `400 ${fontSize * 0.55}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
-    ctx.fillStyle = color + '44'
-    ctx.fillText(dateStr, cx, cy + radius + 64)
+    const dateFontSize2 = digitalFontSize * 0.55
+    const fullDateY = timeY + digitalFontSize + s(6)
+    ctx.font = `400 ${dateFontSize2}px "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif`
+    ctx.fillStyle = color + '40'
+    ctx.fillText(fullDateStr, cx, fullDateY)
+  }
+
+  private drawTaperedHand(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number,
+    angle: number,
+    length: number,
+    baseWidth: number,
+    tipWidth: number,
+    color: string,
+  ): void {
+    const perpAngle = angle + Math.PI / 2
+    const bx1 = cx + Math.cos(perpAngle) * baseWidth / 2
+    const by1 = cy + Math.sin(perpAngle) * baseWidth / 2
+    const bx2 = cx - Math.cos(perpAngle) * baseWidth / 2
+    const by2 = cy - Math.sin(perpAngle) * baseWidth / 2
+    const tx1 = cx + Math.cos(angle) * length + Math.cos(perpAngle) * tipWidth / 2
+    const ty1 = cy + Math.sin(angle) * length + Math.sin(perpAngle) * tipWidth / 2
+    const tx2 = cx + Math.cos(angle) * length - Math.cos(perpAngle) * tipWidth / 2
+    const ty2 = cy + Math.sin(angle) * length - Math.sin(perpAngle) * tipWidth / 2
+
+    ctx.beginPath()
+    ctx.moveTo(bx1, by1)
+    ctx.lineTo(tx1, ty1)
+    ctx.lineTo(tx2, ty2)
+    ctx.lineTo(bx2, by2)
+    ctx.closePath()
+    ctx.fillStyle = color
+    ctx.fill()
   }
 
   private drawHand(

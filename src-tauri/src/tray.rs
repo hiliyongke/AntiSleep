@@ -11,7 +11,7 @@ const TRAY_ICON_BYTES: &[u8] = include_bytes!("tray-icon.png");
 const EVENT_PREVENTION_TOGGLED: &str = "antisleep://prevention-toggled";
 
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    let toggle = MenuItemBuilder::with_id("toggle", "允许休眠").build(app)?;
+    let toggle = MenuItemBuilder::with_id("toggle", "防止休眠").build(app)?;
     let screensaver = MenuItemBuilder::with_id("screensaver", "打开屏保").build(app)?;
     let settings = MenuItemBuilder::with_id("settings", "设置").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "退出 AntiSleep").build(app)?;

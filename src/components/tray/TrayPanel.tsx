@@ -38,12 +38,19 @@ export function TrayPanel() {
   const marquee = useAppStore((s) => s.marquee)
   const { prevention, togglePrevention, getRemainingTimeText, getStatusColor, isExpiringSoon } = useSleepPrevention()
 
-  const handleSettings = () => {
+  const handleSettings = async () => {
     const isDark = document.documentElement.classList.contains('dark')
+    const { currentMonitor } = await import('@tauri-apps/api/window')
+    const monitor = await currentMonitor()
+    const scaleFactor = monitor?.scaleFactor ?? 1
+    const screenWidth = (monitor?.size.width ?? 1920) / scaleFactor
+    const screenHeight = (monitor?.size.height ?? 1080) / scaleFactor
     openOrFocusWindow('settings', {
       title: 'AntiSleep Settings',
-      width: 600,
-      height: 700,
+      width: Math.round(screenWidth * 0.8),
+      height: Math.round(screenHeight * 0.8),
+      minWidth: Math.round(screenWidth * 0.56),
+      minHeight: 600,
       resizable: true,
       decorations: true,
       center: true,

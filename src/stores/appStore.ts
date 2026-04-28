@@ -21,7 +21,6 @@ import {
 import {
   startPrevention,
   stopPrevention,
-  getRemainingTime,
   listProcesses,
   listProcessesDetailed,
   isCharging,
@@ -410,8 +409,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     })
 
-    // 6) Listen for prevention toggled from Rust side (tray menu toggle)
-    //    When user clicks "暂停/开始防锁屏" in the tray context menu,
+    // 7) Listen for prevention toggled from Rust side (tray menu toggle)
+    //    When user clicks "允许休眠/防止休眠" in the tray context menu,
     //    Rust toggles the caffeinate process and emits this event.
     //    Frontend must sync its state accordingly.
     await listen<boolean>('antisleep://prevention-toggled', (event) => {
@@ -743,6 +742,3 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setTrayPanelOpen: (open) => set({ trayPanelOpen: open }),
   setScreensaverVisible: (visible) => set({ screensaverVisible: visible }),
 }))
-
-// Suppress unused-import warning in non-Tauri builds
-void getRemainingTime
