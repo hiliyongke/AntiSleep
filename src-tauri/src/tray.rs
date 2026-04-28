@@ -73,12 +73,13 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
 
 fn open_tray_panel(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("tray-panel") {
+        let _ = window.show();
         let _ = window.set_focus();
     } else {
         let _ = tauri::WebviewWindowBuilder::new(
             app,
             "tray-panel",
-            tauri::WebviewUrl::App("/?label=tray-panel".into()),
+            tauri::WebviewUrl::App("index.html".into()),
         )
         .title("AntiSleep")
         .inner_size(380.0, 480.0)
@@ -93,12 +94,13 @@ fn open_tray_panel(app: &tauri::AppHandle) {
 
 fn open_screensaver_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("screensaver") {
+        let _ = window.show();
         let _ = window.set_focus();
     } else {
         let _ = tauri::WebviewWindowBuilder::new(
             app,
             "screensaver",
-            tauri::WebviewUrl::App("/?label=screensaver".into()),
+            tauri::WebviewUrl::App("index.html".into()),
         )
         .title("AntiSleep Screensaver")
         .decorations(false)
@@ -113,12 +115,13 @@ fn open_screensaver_window(app: &tauri::AppHandle) {
 
 fn open_settings_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.show();
         let _ = window.set_focus();
     } else {
         let _ = tauri::WebviewWindowBuilder::new(
             app,
             "settings",
-            tauri::WebviewUrl::App("/?label=settings".into()),
+            tauri::WebviewUrl::App("index.html".into()),
         )
         .title("AntiSleep Settings")
         .inner_size(600.0, 700.0)

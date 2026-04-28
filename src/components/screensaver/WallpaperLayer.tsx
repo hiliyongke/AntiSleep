@@ -1,5 +1,10 @@
 import { useAppStore } from '../../stores/appStore'
-import { getWallpaperUrl, isVideoWallpaper } from '../../wallpaper/types'
+import {
+  getWallpaperUrl,
+  isVideoWallpaper,
+  isGradientWallpaper,
+  getGradientCss,
+} from '../../wallpaper/types'
 
 export function WallpaperLayer() {
   const wallpaper = useAppStore((s) => s.wallpaper)
@@ -8,6 +13,16 @@ export function WallpaperLayer() {
 
   if (!source || source.id === 'built-in-black') {
     return <div className="absolute inset-0 z-10 bg-black" />
+  }
+
+  // Built-in gradient presets
+  if (isGradientWallpaper(source)) {
+    return (
+      <div
+        className="absolute inset-0 z-10"
+        style={{ opacity, background: getGradientCss(source) }}
+      />
+    )
   }
 
   const url = getWallpaperUrl(source)

@@ -8,12 +8,17 @@ description = "AntiSleep - Cross-platform screen lock prevention tool"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tauri-plugin-store = "2.4.2"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-global-shortcut = "2.3.1"
+sysinfo = "0.38.4"
+battery = "0.7.8"
 
 # macOS specific
 [target.'cfg(target_os = "macos")'.dependencies]

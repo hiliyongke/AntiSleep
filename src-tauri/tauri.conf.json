@@ -16,11 +16,18 @@
         "label": "main",
         "title": "AntiSleep",
         "visible": false,
-        "backgroundColor": "#1C1C1E"
+        "backgroundColor": "#202020"
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https://asset.localhost; font-src 'self' data:; media-src 'self' asset: https://asset.localhost; connect-src 'self' https://localhost"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https://asset.localhost; font-src 'self' data:; media-src 'self' asset: https://asset.localhost; connect-src 'self' ipc: https://ipc.localhost https://localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["**"],
+          "deny": []
+        }
+      }
     }
   },
   "bundle": {

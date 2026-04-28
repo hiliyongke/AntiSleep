@@ -5,38 +5,67 @@ import { ToggleButton } from './ToggleButton'
 import { DurationSelector } from './DurationSelector'
 import { ThemePreviewGrid } from './ThemePreviewGrid'
 import { MarqueePreview } from './MarqueePreview'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Settings, Monitor, X } from 'lucide-react'
+
+/**
+ * 打开或聚焦一个已命名窗口。
+ * - 已存在：show() + setFocus()
+ * - 不存在：new WebviewWindow(label, options) 创建
+ *
+ * 这是 Tauri v2 打开/复用窗口的规范做法（@tauri-apps/api/webviewWindow）。
+ * 注意 url 用相对路径 "index.html"，窗口身份完全由 label 承载，
+ * 前端通过 getCurrentWindow().label 读取。
+ */
+async function openOrFocusWindow(
+  label: string,
+  options: ConstructorParameters<typeof WebviewWindow>[1],
+) {
+  const existing = await WebviewWindow.getByLabel(label)
+  if (existing) {
+    await existing.show()
+    await existing.setFocus()
+    return
+  }
+  const webview = new WebviewWindow(label, { url: 'index.html', ...options })
+  webview.once('tauri://error', (e) => {
+    console.error(`[TrayPanel] failed to create window "${label}":`, e)
+  })
+}
 
 export function TrayPanel() {
   const marquee = useAppStore((s) => s.marquee)
   const { prevention, togglePrevention, getRemainingTimeText, getStatusColor, isExpiringSoon } = useSleepPrevention()
 
   const handleSettings = () => {
-    if (window.__TAURI__) {
-      window.__TAURI__.core.invoke('plugin:window|create', {
-        label: 'settings',
-        url: '/?label=settings',
-      }).catch(() => {
-        // Fallback: use WebviewWindow
-      })
-    }
+    openOrFocusWindow('settings', {
+      title: 'AntiSleep Settings',
+      width: 600,
+      height: 700,
+      resizable: true,
+      decorations: true,
+      center: true,
+      backgroundColor: '#202020',
+    }).catch((err) => console.error('[TrayPanel] open settings failed:', err))
   }
 
   const handleScreensaver = () => {
-    if (window.__TAURI__) {
-      window.__TAURI__.core.invoke('plugin:window|create', {
-        label: 'screensaver',
-        url: '/?label=screensaver',
-      }).catch(() => {})
-    }
+    openOrFocusWindow('screensaver', {
+      title: 'AntiSleep Screensaver',
+      fullscreen: true,
+      resizable: false,
+      decorations: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      backgroundColor: '#000000',
+    }).catch((err) => console.error('[TrayPanel] open screensaver failed:', err))
   }
 
   const handleClose = () => {
-    if (window.__TAURI__) {
-      window.__TAURI__.core.invoke('plugin:window|close', { label: 'tray-panel' }).catch(() => {
-        window.close()
-      })
-    }
+    getCurrentWindow()
+      .close()
+      .catch((err) => console.error('[TrayPanel] close failed:', err))
   }
 
   return (

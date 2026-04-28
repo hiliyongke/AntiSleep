@@ -1,13 +1,13 @@
+import { useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
 import type { PreventionMode, DurationOption } from '../../types'
+
+type ShortcutKey = 'shortcutEnable' | 'shortcutDisable' | 'shortcutScreensaver'
 
 export function GeneralSettings() {
   const settings = useAppStore((s) => s.settings)
   const prevention = useAppStore((s) => s.prevention)
-
-  const toggleAutoStart = () => {
-    useAppStore.setState((s) => ({ settings: { ...s.settings, autoStart: !s.settings.autoStart } }))
-  }
+  const setAutoStart = useAppStore((s) => s.setAutoStart)
 
   return (
     <div className="space-y-6">
@@ -21,7 +21,7 @@ export function GeneralSettings() {
         </div>
         <ToggleSwitch
           checked={settings.autoStart}
-          onChange={toggleAutoStart}
+          onChange={() => setAutoStart(!settings.autoStart)}
         />
       </div>
 
@@ -69,9 +69,9 @@ export function GeneralSettings() {
       {/* Shortcuts */}
       <div className="space-y-3">
         <p className="text-sm text-text-primary">全局快捷键</p>
-        <ShortcutRow label="开启防锁屏" value={settings.shortcutEnable} />
-        <ShortcutRow label="关闭防锁屏" value={settings.shortcutDisable} />
-        <ShortcutRow label="打开屏保" value={settings.shortcutScreensaver} />
+        <ShortcutRow label="开启防锁屏" storeKey="shortcutEnable" value={settings.shortcutEnable} />
+        <ShortcutRow label="关闭防锁屏" storeKey="shortcutDisable" value={settings.shortcutDisable} />
+        <ShortcutRow label="打开屏保" storeKey="shortcutScreensaver" value={settings.shortcutScreensaver} />
       </div>
     </div>
   )
@@ -104,13 +104,57 @@ function ModeOption({ label, desc, active, onClick }: { label: string; desc: str
   )
 }
 
-function ShortcutRow({ label, value }: { label: string; value: string }) {
+function formatCombo(combo: string): string {
+  return combo
+    .replace(/CommandOrControl/g, '⌘')
+    .replace(/Command/g, '⌘')
+    .replace(/Control/g, '⌃')
+    .replace(/Shift/g, '⇧')
+    .replace(/Alt|Option/g, '⌥')
+}
+
+/** Key-capture shortcut row — click to record new shortcut */
+function ShortcutRow({ label, value, storeKey }: { label: string; value: string; storeKey: ShortcutKey }) {
+  const setShortcut = useAppStore((s) => s.setShortcut)
+  const [recording, setRecording] = useState(false)
+
+  const handleKeyDown = async (e: React.KeyboardEvent) => {
+    e.preventDefault()
+    if (e.key === 'Escape') {
+      setRecording(false)
+      return
+    }
+    // Must have at least one modifier + a non-modifier key
+    if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) return
+
+    const parts: string[] = []
+    if (e.metaKey || e.ctrlKey) parts.push('CommandOrControl')
+    if (e.shiftKey) parts.push('Shift')
+    if (e.altKey) parts.push('Alt')
+    const k = e.key.length === 1 ? e.key.toUpperCase() : e.key
+    parts.push(k)
+
+    if (parts.length < 2) return
+    const combo = parts.join('+')
+    await setShortcut(storeKey, combo)
+    setRecording(false)
+  }
+
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-text-secondary">{label}</span>
-      <kbd className="px-2 py-0.5 rounded bg-background-light text-xs text-text-tertiary border border-border-fluent">
-        {value.replace('CommandOrControl', '⌘').replace('Shift', '⇧')}
-      </kbd>
+      <button
+        onClick={() => setRecording(true)}
+        onBlur={() => setRecording(false)}
+        onKeyDown={handleKeyDown}
+        className={`px-2 py-0.5 rounded text-xs border transition-colors ${
+          recording
+            ? 'border-accent text-accent bg-accent/10'
+            : 'bg-background-light text-text-tertiary border-border-fluent hover:border-border-fluent-hover'
+        }`}
+      >
+        {recording ? '按下新组合键…' : formatCombo(value)}
+      </button>
     </div>
   )
 }
