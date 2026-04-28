@@ -59,6 +59,20 @@ export async function persistSet<T>(key: string, value: T): Promise<void> {
   }
 }
 
+export async function persistRemove(key: string): Promise<void> {
+  const store = await getStore()
+  if (store) {
+    await store.delete(key)
+    await store.save()
+    return
+  }
+  try {
+    localStorage.removeItem(`antisleep:${key}`)
+  } catch (e) {
+    console.warn('[persist] localStorage remove failed', e)
+  }
+}
+
 /**
  * Persist a value AND broadcast to every other webview window so they
  * can refresh their in-memory store. Pass a `sourceId` unique to this

@@ -29,7 +29,7 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
     >
       <div className="acrylic-light rounded-full px-4 py-2.5 flex items-center gap-3">
         {/* Remaining time */}
-        <div className="text-xs text-text-secondary tabular-nums pr-2 border-r border-border-fluent">
+        <div className="text-xs tabular-nums pr-2" style={{ color: 'var(--text-secondary)', borderRight: '1px solid var(--border-fluent)' }}>
           {getRemainingTimeText() || '--:--'}
         </div>
 
@@ -37,8 +37,11 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
         <button
           onClick={() => setThemeEnabled(!theme.enabled)}
           className={`p-1.5 rounded-md transition-colors ${
-            theme.enabled ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+            theme.enabled ? 'text-accent' : ''
           }`}
+          style={theme.enabled ? {} : { color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => { if (!theme.enabled) e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={(e) => { if (!theme.enabled) e.currentTarget.style.color = 'var(--text-tertiary)' }}
           title={theme.enabled ? '关闭特效' : '开启特效'}
         >
           <Palette size={16} />
@@ -48,8 +51,11 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
         <button
           onClick={() => setMarqueeEnabled(!marquee.enabled)}
           className={`p-1.5 rounded-md transition-colors ${
-            marquee.enabled ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+            marquee.enabled ? 'text-accent' : ''
           }`}
+          style={marquee.enabled ? {} : { color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => { if (!marquee.enabled) e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={(e) => { if (!marquee.enabled) e.currentTarget.style.color = 'var(--text-tertiary)' }}
           title={marquee.enabled ? '关闭跑马灯' : '开启跑马灯'}
         >
           <ScrollText size={16} />
@@ -58,7 +64,10 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
         {/* Close */}
         <button
           onClick={handleClose}
-          className="p-1.5 rounded-md text-text-tertiary hover:text-functional-error transition-colors"
+          className="p-1.5 rounded-md transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#D13438')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
           title="关闭屏保"
         >
           <X size={16} />

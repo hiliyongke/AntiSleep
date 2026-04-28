@@ -39,6 +39,7 @@ export function TrayPanel() {
   const { prevention, togglePrevention, getRemainingTimeText, getStatusColor, isExpiringSoon } = useSleepPrevention()
 
   const handleSettings = () => {
+    const isDark = document.documentElement.classList.contains('dark')
     openOrFocusWindow('settings', {
       title: 'AntiSleep Settings',
       width: 600,
@@ -46,7 +47,7 @@ export function TrayPanel() {
       resizable: true,
       decorations: true,
       center: true,
-      backgroundColor: '#202020',
+      backgroundColor: isDark ? '#202020' : '#F9F9F9',
     }).catch((err) => console.error('[TrayPanel] open settings failed:', err))
   }
 
@@ -109,21 +110,30 @@ export function TrayPanel() {
       <div className="px-5 pb-4 pt-1 flex items-center justify-center gap-6">
         <button
           onClick={handleSettings}
-          className="flex flex-col items-center gap-1 text-text-tertiary hover:text-text-primary transition-colors"
+          className="flex flex-col items-center gap-1 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
           <Settings size={18} />
           <span className="text-[10px]">设置</span>
         </button>
         <button
           onClick={handleScreensaver}
-          className="flex flex-col items-center gap-1 text-text-tertiary hover:text-text-primary transition-colors"
+          className="flex flex-col items-center gap-1 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
           <Monitor size={18} />
           <span className="text-[10px]">屏保</span>
         </button>
         <button
           onClick={handleClose}
-          className="flex flex-col items-center gap-1 text-text-tertiary hover:text-functional-error transition-colors"
+          className="flex flex-col items-center gap-1 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#D13438')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
           <X size={18} />
           <span className="text-[10px]">关闭</span>

@@ -9,6 +9,9 @@ const THEME_COLORS: Record<ThemeId, string> = {
   'aurora': '#16C60C',
   'breathing-light': '#D83B01',
   'clock': '#FFFFFF',
+  'fireflies': '#FFD700',
+  'wave-fluid': '#00D4AA',
+  'neon-geo': '#FF006E',
 }
 
 const THEME_ICONS: Record<ThemeId, string> = {
@@ -18,6 +21,9 @@ const THEME_ICONS: Record<ThemeId, string> = {
   'aurora': '🌈',
   'breathing-light': '💡',
   'clock': '🕐',
+  'fireflies': '🪲',
+  'wave-fluid': '🌊',
+  'neon-geo': '🔷',
 }
 
 export function ThemePreviewGrid() {
@@ -33,11 +39,14 @@ export function ThemePreviewGrid() {
           <button
             key={theme.id}
             onClick={() => setTheme(theme.id)}
-            className={`group relative flex flex-col items-center justify-center p-2 rounded-md transition-all duration-200 ${
+            className={`group relative flex flex-col items-center justify-center p-2 rounded-md transition-all duration-200 border ${
               isActive
-                ? 'bg-accent/15 border border-accent/40'
-                : 'bg-background-subtle border border-transparent hover:bg-background-lighter hover:border-border-fluent-hover'
+                ? 'bg-accent/15 border-accent/40'
+                : 'border-transparent hover:border-[var(--border-fluent-hover)]'
             }`}
+            style={isActive ? {} : { backgroundColor: 'var(--bg-subtle)' }}
+            onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-lighter)' }}
+            onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-subtle)' }}
           >
             {/* Mini preview swatch */}
             <div
@@ -51,9 +60,7 @@ export function ThemePreviewGrid() {
             >
               {THEME_ICONS[theme.id]}
             </div>
-            <span className={`text-[10px] leading-tight ${
-              isActive ? 'text-text-primary' : 'text-text-secondary'
-            }`}>
+            <span className={`text-[10px] leading-tight ${isActive ? '' : ''}`} style={isActive ? { color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}>
               {theme.name}
             </span>
           </button>

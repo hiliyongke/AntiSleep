@@ -17,11 +17,11 @@ export function InfoOverlay() {
   return (
     <div className="absolute top-6 left-6 z-30 pointer-events-none">
       <div className="acrylic-subtle rounded-md px-4 py-2.5 flex items-center gap-3">
-        <span className="text-lg font-light text-text-primary tabular-nums">{timeStr}</span>
+        <span className="text-lg font-light tabular-nums" style={{ color: 'var(--text-primary)' }}>{timeStr}</span>
         {prevention.active && (
           <>
-            <div className="w-px h-4 bg-border-fluent" />
-            <span className="text-sm text-text-secondary tabular-nums">
+            <div className="w-px h-4" style={{ backgroundColor: 'var(--border-fluent)' }} />
+            <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>
               {getRemainingTimeText()}
             </span>
             <div

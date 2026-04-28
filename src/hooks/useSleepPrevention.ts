@@ -1,11 +1,26 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAppStore } from '../stores/appStore'
 
+/** Send a system notification (safe no-op in browser) */
+function sendNotification(title: string, body: string) {
+  if (typeof window === 'undefined') return
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body })
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then((perm) => {
+        if (perm === 'granted') new Notification(title, { body })
+      })
+    }
+  }
+}
+
 /**
  * Hook for managing sleep prevention state and countdown
  */
 export function useSleepPrevention() {
   const prevention = useAppStore((s) => s.prevention)
+  const settings = useAppStore((s) => s.settings)
   const togglePrevention = useAppStore((s) => s.togglePrevention)
   const startPreventionAction = useAppStore((s) => s.startPreventionAction)
   const stopPreventionAction = useAppStore((s) => s.stopPreventionAction)
@@ -13,14 +28,24 @@ export function useSleepPrevention() {
   const setDuration = useAppStore((s) => s.setDuration)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const warningFiredRef = useRef(false)
 
-  // Auto-stop when duration expires
+  // Auto-stop when duration expires + expiry warning
   useEffect(() => {
+    // Reset warning flag when prevention starts
+    if (prevention.active && prevention.startTime) {
+      const elapsed = (Date.now() - prevention.startTime) / 1000
+      if (elapsed < 2) {
+        warningFiredRef.current = false
+      }
+    }
+
     if (!prevention.active || prevention.duration === null) {
       if (timerRef.current) {
         clearInterval(timerRef.current)
         timerRef.current = null
       }
+      warningFiredRef.current = false
       return
     }
 
@@ -28,7 +53,22 @@ export function useSleepPrevention() {
       if (!prevention.startTime) return
       const elapsed = (Date.now() - prevention.startTime) / 1000
       const totalSeconds = (prevention.duration ?? 0) * 60
-      if (elapsed >= totalSeconds) {
+      const remaining = totalSeconds - elapsed
+
+      // Expiry warning notification
+      if (settings.expiryWarning && !warningFiredRef.current && remaining > 0) {
+        const warningSeconds = settings.expiryWarningMinutes * 60
+        if (remaining <= warningSeconds) {
+          warningFiredRef.current = true
+          const mins = Math.ceil(remaining / 60)
+          sendNotification(
+            'AntiSleep 即将到期',
+            `防锁屏将在 ${mins} 分钟后结束，请注意保存工作。`
+          )
+        }
+      }
+
+      if (remaining <= 0) {
         stopPreventionAction()
       }
     }
@@ -40,7 +80,7 @@ export function useSleepPrevention() {
         clearInterval(timerRef.current)
       }
     }
-  }, [prevention.active, prevention.duration, prevention.startTime, stopPreventionAction])
+  }, [prevention.active, prevention.duration, prevention.startTime, stopPreventionAction, settings.expiryWarning, settings.expiryWarningMinutes])
 
   const getRemainingTimeText = useCallback((): string => {
     if (!prevention.active || !prevention.startTime) return ''

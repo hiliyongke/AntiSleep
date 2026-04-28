@@ -6,6 +6,9 @@ import { StarfieldRenderer } from './starfield'
 import { AuroraRenderer } from './aurora'
 import { BreathingLightRenderer } from './breathing-light'
 import { ClockRenderer } from './clock'
+import { FirefliesRenderer } from './fireflies'
+import { WaveFluidRenderer } from './wave-fluid'
+import { NeonGeoRenderer } from './neon-geo'
 
 // Theme metadata
 interface ThemeMeta {
@@ -23,13 +26,18 @@ const themeMetaList: ThemeMeta[] = [
   { id: 'aurora', name: '极光', category: 'nature', thumbnail: '', defaultColor: '#16C60C' },
   { id: 'breathing-light', name: '呼吸灯', category: 'minimal', thumbnail: '', defaultColor: '#D83B01' },
   { id: 'clock', name: '时钟', category: 'minimal', thumbnail: '', defaultColor: '#FFFFFF' },
+  { id: 'fireflies', name: '萤火之森', category: 'nature', thumbnail: '', defaultColor: '#FFD700' },
+  { id: 'wave-fluid', name: '流体波纹', category: 'nature', thumbnail: '', defaultColor: '#00D4AA' },
+  { id: 'neon-geo', name: '霓虹几何', category: 'tech', thumbnail: '', defaultColor: '#FF006E' },
 ]
 
 // Singleton instances
 const themeInstances: Map<ThemeId, ThemeRenderer> = new Map()
 
 function getOrCreateRenderer(id: ThemeId): ThemeRenderer | null {
-  if (themeInstances.has(id)) return themeInstances.get(id)!
+  // If an instance exists but was destroyed, remove it first
+  const existing = themeInstances.get(id)
+  if (existing) return existing
 
   let renderer: ThemeRenderer | null = null
   switch (id) {
@@ -39,10 +47,18 @@ function getOrCreateRenderer(id: ThemeId): ThemeRenderer | null {
     case 'aurora': renderer = new AuroraRenderer(); break
     case 'breathing-light': renderer = new BreathingLightRenderer(); break
     case 'clock': renderer = new ClockRenderer(); break
+    case 'fireflies': renderer = new FirefliesRenderer(); break
+    case 'wave-fluid': renderer = new WaveFluidRenderer(); break
+    case 'neon-geo': renderer = new NeonGeoRenderer(); break
   }
 
   if (renderer) themeInstances.set(id, renderer)
   return renderer
+}
+
+/** Remove a renderer instance from cache after it has been destroyed */
+export function removeThemeInstance(id: ThemeId): void {
+  themeInstances.delete(id)
 }
 
 export function getThemeRenderer(id: ThemeId): ThemeRenderer | null {

@@ -20,9 +20,19 @@ export function getMarqueePositionClasses(position: MarqueePosition): string {
   switch (position) {
     case 'top':
       return 'top-[10%]'
+    case 'center':
+      return 'top-1/2 -translate-y-1/2'
     case 'center-bottom':
       return 'top-[65%]'
     case 'bottom':
       return 'bottom-[10%]'
+    case 'top-left':
+      return 'top-[10%] left-[5%]'
+    case 'top-right':
+      return 'top-[10%] right-[5%]'
+    case 'bottom-left':
+      return 'bottom-[10%] left-[5%]'
+    case 'bottom-right':
+      return 'bottom-[10%] right-[5%]'
   }
 }

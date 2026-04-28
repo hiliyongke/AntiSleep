@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { listen } from '@tauri-apps/api/event'
 import {
   type PreventionState,
   type PreventionMode,
@@ -12,21 +13,23 @@ import {
   type MarqueeMode,
   type MarqueeSpeed,
   type MarqueePosition,
+  type TextAnimation,
   type SmartSceneState,
   type AppSettings,
-  type LockScreenState,
-  type LockType,
+  type ThemePreference,
 } from '../types'
 import {
   startPrevention,
   stopPrevention,
   getRemainingTime,
   listProcesses,
+  listProcessesDetailed,
   isCharging,
 } from '../lib/tauri-commands'
 import {
   persistGet,
   persistSet,
+  persistRemove,
   syncedSet,
   subscribeStateChanges,
   selfWebviewId,
@@ -39,22 +42,12 @@ import {
 } from '../lib/system-services'
 import { openAppWindow } from '../lib/window'
 
-// Simple hash for PIN/gesture (client-side, not crypto-grade)
-async function hashSecret(input: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(input + 'antisleep-salt-2024')
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
 // Persistence keys
 const K_SETTINGS = 'settings'
 const K_WALLPAPER = 'wallpaper'
 const K_THEME = 'theme'
 const K_MARQUEE = 'marquee'
 const K_SMART = 'smartScene'
-const K_LOCK = 'lockScreen'
 
 /** Persist + broadcast to every other window */
 function sync<T>(key: string, value: T): Promise<void> {
@@ -72,8 +65,6 @@ interface AppStore {
   marquee: MarqueeState
   // Smart scene
   smartScene: SmartSceneState
-  // Lock screen
-  lockScreen: LockScreenState
   // Settings
   settings: AppSettings
   // UI state
@@ -93,6 +84,7 @@ interface AppStore {
   // Wallpaper actions
   setWallpaper: (id: string) => void
   setWallpaperOpacity: (opacity: number) => void
+  setWallpaperBlur: (blur: number) => void
   addCustomWallpaper: (path: string) => void
   removeCustomWallpaper: (id: string) => void
 
@@ -103,16 +95,21 @@ interface AppStore {
   setThemeDensity: (density: ParticleDensity) => void
   setThemeEnabled: (enabled: boolean) => void
   setThemeCustomColor: (color: string) => void
+  setClockStyle: (style: import('../types').ClockStyle) => void
+  resetToFactory: () => Promise<void>
 
   // Marquee actions
   setMarqueeEnabled: (enabled: boolean) => void
   setMarqueeMode: (mode: MarqueeMode) => void
   setMarqueeSpeed: (speed: MarqueeSpeed) => void
   setMarqueePosition: (position: MarqueePosition) => void
+  setMarqueeAnimation: (animation: TextAnimation) => void
+  setMarqueeDisplayStrategy: (strategy: 'single' | 'cycle' | 'all') => void
   addMarqueeItem: (item: MarqueeItem) => void
   updateMarqueeItem: (id: string, updates: Partial<MarqueeItem>) => void
   removeMarqueeItem: (id: string) => void
   reorderMarqueeItems: (items: MarqueeItem[]) => void
+  toggleMarqueeItemEnabled: (id: string) => void
 
   // Smart scene actions
   setAutoOnCharge: (enabled: boolean) => void
@@ -121,17 +118,15 @@ interface AppStore {
   // Settings actions
   setAutoStart: (enabled: boolean) => Promise<void>
   setShortcut: (key: 'shortcutEnable' | 'shortcutDisable' | 'shortcutScreensaver', combo: string) => Promise<void>
-
-  // Lock screen actions
-  setLockEnabled: (enabled: boolean) => void
-  setLockType: (lockType: LockType) => void
-  setPinCode: (pin: string) => Promise<void>
-  setGesturePattern: (pattern: string) => Promise<void>
-  setAutoLockDelay: (delay: number) => void
-  activateLockScreen: () => void
-  unlockWithPin: (pin: string) => Promise<boolean>
-  unlockWithGesture: (pattern: string) => Promise<boolean>
-  resetFailedAttempts: () => void
+  setMinimizeToTray: (enabled: boolean) => void
+  setExpiryWarning: (enabled: boolean) => void
+  setExpiryWarningMinutes: (minutes: number) => void
+  setSoundEnabled: (enabled: boolean) => void
+  setLanguage: (language: 'zh-CN' | 'en-US') => void
+  setPollIntervalSeconds: (seconds: number) => void
+  setThemePreference: (preference: ThemePreference) => void
+  setIdleScreensaverMinutes: (minutes: number) => void
+  completeOnboarding: () => void
 
   // UI actions
   setTrayPanelOpen: (open: boolean) => void
@@ -154,6 +149,7 @@ const defaultWallpaper: WallpaperState = {
     path: '',
   },
   opacity: 100,
+  blur: 0,
   builtIn: [
     { id: 'built-in-black', type: 'built-in', name: '纯黑', path: '' },
     { id: 'built-in-deep-space', type: 'built-in', name: '深空星云', path: 'gradient:deep-space' },
@@ -171,33 +167,25 @@ const defaultTheme: ThemeState = {
   density: 'medium',
   enabled: true,
   customColor: '#0078D4',
+  clockStyle: 'analog',
 }
 
 const defaultMarquee: MarqueeState = {
   enabled: false,
   items: [
-    { id: '1', content: 'AI 训练进行中，请勿锁屏', fontSize: 32, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 10 },
-    { id: '2', content: '保持专注，持续创造', fontSize: 28, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 8 },
+    { id: '1', content: 'AI 训练进行中，请勿锁屏', fontSize: 32, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 10, enabled: true },
+    { id: '2', content: '保持专注，持续创造', fontSize: 28, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 8, enabled: true },
   ],
   mode: 'horizontal',
   speed: 'medium',
   position: 'center-bottom',
+  animation: 'none',
+  displayStrategy: 'cycle',
 }
 
 const defaultSmartScene: SmartSceneState = {
   autoOnCharge: false,
   processNames: [],
-}
-
-const defaultLockScreen: LockScreenState = {
-  enabled: false,
-  lockType: 'pin',
-  pinHash: null,
-  gestureHash: null,
-  autoLockDelay: 0,
-  locked: false,
-  failedAttempts: 0,
-  lastFailedTime: null,
 }
 
 const defaultSettings: AppSettings = {
@@ -207,6 +195,15 @@ const defaultSettings: AppSettings = {
   shortcutEnable: 'CommandOrControl+Shift+S',
   shortcutDisable: 'CommandOrControl+Shift+X',
   shortcutScreensaver: 'CommandOrControl+Shift+F',
+  minimizeToTray: true,
+  expiryWarning: true,
+  expiryWarningMinutes: 5,
+  soundEnabled: true,
+  language: 'zh-CN',
+  pollIntervalSeconds: 10,
+  themePreference: 'system',
+  idleScreensaverMinutes: 0,
+  onboardingCompleted: false,
 }
 
 // Smart-scene polling timer
@@ -224,11 +221,19 @@ async function pollSmartScene() {
         useAppStore.getState().startPreventionAction(prevention.mode, prevention.duration)
         return
       }
-      if (!charging && active) {
+      if (!charging && active && smartScene.processNames.length === 0) {
+        // Only stop if process detection is NOT also active
         useAppStore.getState().stopPreventionAction()
         return
       }
-    } catch {}
+      // If charging stopped but process detection is active, fall through
+      // to let process detection decide
+      if (!charging && active && smartScene.processNames.length > 0) {
+        // Fall through to process check — don't stop yet
+      }
+    } catch (e) {
+      console.warn('[SmartScene] Charging detection failed:', e)
+    }
   }
 
   // 2) Process detection
@@ -242,21 +247,52 @@ async function pollSmartScene() {
       )
       if (anyRunning && !active) {
         useAppStore.getState().startPreventionAction(prevention.mode, prevention.duration)
-      } else if (!anyRunning && active && !smartScene.autoOnCharge) {
-        useAppStore.getState().stopPreventionAction()
+      } else if (!anyRunning && active) {
+        // Stop only if charging is not keeping it active
+        if (!smartScene.autoOnCharge) {
+          useAppStore.getState().stopPreventionAction()
+        } else {
+          // Check charging state before stopping
+          try {
+            const charging = await isCharging()
+            if (!charging) {
+              useAppStore.getState().stopPreventionAction()
+            }
+          } catch {
+            // If we can't check charging, stop to be safe
+            useAppStore.getState().stopPreventionAction()
+          }
+        }
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[SmartScene] Process detection failed:', e)
+    }
   }
 }
 
 function ensureSmartSceneLoop() {
-  const { smartScene } = useAppStore.getState()
+  const { smartScene, settings } = useAppStore.getState()
   const enabled = smartScene.autoOnCharge || smartScene.processNames.length > 0
+  const interval = (settings.pollIntervalSeconds || 10) * 1000
   if (enabled && !smartSceneTimer) {
-    smartSceneTimer = setInterval(pollSmartScene, 10000)
+    smartSceneTimer = setInterval(pollSmartScene, interval)
   } else if (!enabled && smartSceneTimer) {
     clearInterval(smartSceneTimer)
     smartSceneTimer = null
+  }
+}
+
+function applyThemePreference(preference: ThemePreference) {
+  const root = document.documentElement
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const isDark = preference === 'dark' || (preference === 'system' && systemDark)
+
+  if (isDark) {
+    root.classList.add('dark')
+    root.classList.remove('light')
+  } else {
+    root.classList.add('light')
+    root.classList.remove('dark')
   }
 }
 
@@ -282,7 +318,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   theme: defaultTheme,
   marquee: defaultMarquee,
   smartScene: defaultSmartScene,
-  lockScreen: defaultLockScreen,
   settings: defaultSettings,
   trayPanelOpen: false,
   screensaverVisible: false,
@@ -290,13 +325,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   initApp: async () => {
     // 1) Hydrate from persistent store
-    const [sSettings, sWall, sTheme, sMarq, sSmart, sLock] = await Promise.all([
+    const [sSettings, sWall, sTheme, sMarq, sSmart] = await Promise.all([
       persistGet<AppSettings>(K_SETTINGS),
       persistGet<WallpaperState>(K_WALLPAPER),
       persistGet<ThemeState>(K_THEME),
       persistGet<MarqueeState>(K_MARQUEE),
       persistGet<SmartSceneState>(K_SMART),
-      persistGet<LockScreenState>(K_LOCK),
     ])
 
     set({
@@ -307,9 +341,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       theme: sTheme ? { ...defaultTheme, ...sTheme } : defaultTheme,
       marquee: sMarq ? { ...defaultMarquee, ...sMarq } : defaultMarquee,
       smartScene: sSmart ? { ...defaultSmartScene, ...sSmart } : defaultSmartScene,
-      lockScreen: sLock
-        ? { ...defaultLockScreen, ...sLock, locked: false, failedAttempts: 0 }
-        : defaultLockScreen,
       prevention: {
         ...defaultPrevention,
         mode: sSettings?.defaultMode ?? defaultPrevention.mode,
@@ -328,10 +359,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch {}
 
-    // 3) Register global shortcuts
+    // 3) Apply theme preference
+    applyThemePreference(get().settings.themePreference)
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      const { settings } = get()
+      if (settings.themePreference === 'system') {
+        applyThemePreference('system')
+      }
+    })
+
+    // 4) Register global shortcuts
     await registerAllShortcuts()
 
-    // 4) Start smart-scene loop if needed
+    // 5) Start smart-scene loop if needed
     ensureSmartSceneLoop()
 
     // 5) Subscribe to cross-window state changes — reload the affected
@@ -366,11 +407,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
           }
           break
         }
-        case K_LOCK: {
-          const v = await persistGet<LockScreenState>(K_LOCK)
-          if (v) set({ lockScreen: { ...get().lockScreen, ...v } })
-          break
-        }
+      }
+    })
+
+    // 6) Listen for prevention toggled from Rust side (tray menu toggle)
+    //    When user clicks "暂停/开始防锁屏" in the tray context menu,
+    //    Rust toggles the caffeinate process and emits this event.
+    //    Frontend must sync its state accordingly.
+    await listen<boolean>('antisleep://prevention-toggled', (event) => {
+      const isActive = event.payload
+      const { prevention } = get()
+      if (isActive && !prevention.active) {
+        // Rust started prevention — sync frontend state
+        set({
+          prevention: {
+            ...prevention,
+            active: true,
+            startTime: Date.now(),
+            assertionId: -1, // Unknown PID from Rust side; will be overwritten on next frontend toggle
+          },
+        })
+      } else if (!isActive && prevention.active) {
+        // Rust stopped prevention — sync frontend state
+        set({
+          prevention: {
+            ...defaultPrevention,
+            mode: prevention.mode,
+            duration: prevention.duration,
+          },
+        })
       }
     })
   },
@@ -454,7 +519,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setWallpaperOpacity: (opacity) => {
-    const next = { ...get().wallpaper, opacity }
+    const clamped = Math.max(0, Math.min(100, opacity))
+    const next = { ...get().wallpaper, opacity: clamped }
+    set({ wallpaper: next })
+    sync(K_WALLPAPER, next)
+  },
+
+  setWallpaperBlur: (blur) => {
+    const clamped = Math.max(0, Math.min(50, blur))
+    const next = { ...get().wallpaper, blur: clamped }
     set({ wallpaper: next })
     sync(K_WALLPAPER, next)
   },
@@ -492,11 +565,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ theme: next }); sync(K_THEME, next)
   },
   setThemeOpacity: (opacity) => {
-    const next = { ...get().theme, opacity }
+    const clamped = Math.max(0, Math.min(100, opacity))
+    const next = { ...get().theme, opacity: clamped }
     set({ theme: next }); sync(K_THEME, next)
   },
   setThemeSpeed: (speed) => {
-    const next = { ...get().theme, speed }
+    const clamped = Math.max(0.1, Math.min(3.0, speed))
+    const next = { ...get().theme, speed: clamped }
     set({ theme: next }); sync(K_THEME, next)
   },
   setThemeDensity: (density) => {
@@ -510,6 +585,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setThemeCustomColor: (color) => {
     const next = { ...get().theme, customColor: color }
     set({ theme: next }); sync(K_THEME, next)
+  },
+  setClockStyle: (style) => {
+    const next = { ...get().theme, clockStyle: style }
+    set({ theme: next }); sync(K_THEME, next)
+  },
+  resetToFactory: async () => {
+    // Clear all persisted data
+    await Promise.all([
+      persistRemove(K_SETTINGS),
+      persistRemove(K_WALLPAPER),
+      persistRemove(K_THEME),
+      persistRemove(K_MARQUEE),
+      persistRemove(K_SMART),
+    ])
+    // Reset state to defaults
+    set({
+      settings: defaultSettings,
+      wallpaper: defaultWallpaper,
+      theme: defaultTheme,
+      marquee: defaultMarquee,
+      smartScene: defaultSmartScene,
+      prevention: defaultPrevention,
+    })
   },
 
   // Marquee
@@ -527,6 +625,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   setMarqueePosition: (position) => {
     const next = { ...get().marquee, position }
+    set({ marquee: next }); sync(K_MARQUEE, next)
+  },
+  setMarqueeAnimation: (animation) => {
+    const next = { ...get().marquee, animation }
+    set({ marquee: next }); sync(K_MARQUEE, next)
+  },
+  setMarqueeDisplayStrategy: (displayStrategy) => {
+    const next = { ...get().marquee, displayStrategy }
     set({ marquee: next }); sync(K_MARQUEE, next)
   },
   addMarqueeItem: (item) => {
@@ -551,6 +657,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   reorderMarqueeItems: (items) => {
     const next = { ...get().marquee, items }
+    set({ marquee: next }); sync(K_MARQUEE, next)
+  },
+  toggleMarqueeItemEnabled: (id) => {
+    const next = {
+      ...get().marquee,
+      items: get().marquee.items.map((item) =>
+        item.id === id ? { ...item, enabled: !item.enabled } : item
+      ),
+    }
     set({ marquee: next }); sync(K_MARQUEE, next)
   },
 
@@ -579,54 +694,50 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await sync(K_SETTINGS, next)
     await registerAllShortcuts()
   },
-
-  // Lock screen
-  setLockEnabled: (enabled) => {
-    const next = { ...get().lockScreen, enabled }
-    set({ lockScreen: next }); sync(K_LOCK, next)
+  setMinimizeToTray: (enabled) => {
+    const next = { ...get().settings, minimizeToTray: enabled }
+    set({ settings: next }); sync(K_SETTINGS, next)
   },
-  setLockType: (lockType) => {
-    const next = { ...get().lockScreen, lockType }
-    set({ lockScreen: next }); sync(K_LOCK, next)
+  setExpiryWarning: (enabled) => {
+    const next = { ...get().settings, expiryWarning: enabled }
+    set({ settings: next }); sync(K_SETTINGS, next)
   },
-  setPinCode: async (pin: string) => {
-    const pinHash = await hashSecret(pin)
-    const next = { ...get().lockScreen, pinHash, enabled: true }
-    set({ lockScreen: next }); sync(K_LOCK, next)
+  setExpiryWarningMinutes: (minutes) => {
+    const next = { ...get().settings, expiryWarningMinutes: minutes }
+    set({ settings: next }); sync(K_SETTINGS, next)
   },
-  setGesturePattern: async (pattern: string) => {
-    const gestureHash = await hashSecret(pattern)
-    const next = { ...get().lockScreen, gestureHash, enabled: true }
-    set({ lockScreen: next }); sync(K_LOCK, next)
+  setSoundEnabled: (enabled) => {
+    const next = { ...get().settings, soundEnabled: enabled }
+    set({ settings: next }); sync(K_SETTINGS, next)
   },
-  setAutoLockDelay: (delay) => {
-    const next = { ...get().lockScreen, autoLockDelay: delay }
-    set({ lockScreen: next }); sync(K_LOCK, next)
+  setLanguage: (language) => {
+    const next = { ...get().settings, language }
+    set({ settings: next }); sync(K_SETTINGS, next)
   },
-  activateLockScreen: () => set({ lockScreen: { ...get().lockScreen, locked: true } }),
-  unlockWithPin: async (pin: string): Promise<boolean> => {
-    const { lockScreen } = get()
-    if (!lockScreen.pinHash) return false
-    const inputHash = await hashSecret(pin)
-    if (inputHash === lockScreen.pinHash) {
-      set({ lockScreen: { ...lockScreen, locked: false, failedAttempts: 0, lastFailedTime: null } })
-      return true
+  setPollIntervalSeconds: (seconds) => {
+    const clamped = Math.max(5, Math.min(60, seconds))
+    const next = { ...get().settings, pollIntervalSeconds: clamped }
+    set({ settings: next }); sync(K_SETTINGS, next)
+    // Restart smart scene loop with new interval
+    if (smartSceneTimer) {
+      clearInterval(smartSceneTimer)
+      smartSceneTimer = null
     }
-    set({ lockScreen: { ...lockScreen, failedAttempts: lockScreen.failedAttempts + 1, lastFailedTime: Date.now() } })
-    return false
+    ensureSmartSceneLoop()
   },
-  unlockWithGesture: async (pattern: string): Promise<boolean> => {
-    const { lockScreen } = get()
-    if (!lockScreen.gestureHash) return false
-    const inputHash = await hashSecret(pattern)
-    if (inputHash === lockScreen.gestureHash) {
-      set({ lockScreen: { ...lockScreen, locked: false, failedAttempts: 0, lastFailedTime: null } })
-      return true
-    }
-    set({ lockScreen: { ...lockScreen, failedAttempts: lockScreen.failedAttempts + 1, lastFailedTime: Date.now() } })
-    return false
+  setThemePreference: (themePreference) => {
+    const next = { ...get().settings, themePreference }
+    set({ settings: next }); sync(K_SETTINGS, next)
+    applyThemePreference(themePreference)
   },
-  resetFailedAttempts: () => set({ lockScreen: { ...get().lockScreen, failedAttempts: 0 } }),
+  setIdleScreensaverMinutes: (minutes) => {
+    const next = { ...get().settings, idleScreensaverMinutes: Math.max(0, Math.min(120, minutes)) }
+    set({ settings: next }); sync(K_SETTINGS, next)
+  },
+  completeOnboarding: () => {
+    const next = { ...get().settings, onboardingCompleted: true }
+    set({ settings: next }); sync(K_SETTINGS, next)
+  },
 
   // UI
   setTrayPanelOpen: (open) => set({ trayPanelOpen: open }),

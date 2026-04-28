@@ -3,14 +3,17 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     window::Color,
     App, Manager,
+    Emitter,
 };
 
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("tray-icon.png");
 
+const EVENT_PREVENTION_TOGGLED: &str = "antisleep://prevention-toggled";
+
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    let toggle = MenuItemBuilder::with_id("toggle", "⏸ 暂停防锁屏").build(app)?;
-    let screensaver = MenuItemBuilder::with_id("screensaver", "🖥 打开屏保").build(app)?;
-    let settings = MenuItemBuilder::with_id("settings", "⚙ 设置").build(app)?;
+    let toggle = MenuItemBuilder::with_id("toggle", "允许休眠").build(app)?;
+    let screensaver = MenuItemBuilder::with_id("screensaver", "打开屏保").build(app)?;
+    let settings = MenuItemBuilder::with_id("settings", "设置").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "退出 AntiSleep").build(app)?;
 
     let menu = MenuBuilder::new(app)
@@ -33,14 +36,25 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "toggle" => {
-                    if crate::sleep_prevention::is_active() {
+                    let now_active = if crate::sleep_prevention::is_active() {
                         let _ = crate::sleep_prevention::stop_all();
+                        false
                     } else {
-                        let _ = crate::sleep_prevention::start(
+                        let result = crate::sleep_prevention::start(
                             crate::sleep_prevention::PreventionMode::System,
                             None,
                         );
+                        result.is_ok()
+                    };
+
+                    // Update menu text to reflect new state
+                    if let Some(item) = app.menu().and_then(|m| m.get("toggle")) {
+                        let text = if now_active { "允许休眠" } else { "防止休眠" };
+                        let _ = item.as_menuitem().map(|mi| mi.set_text(text));
                     }
+
+                    // Notify all frontend windows to sync state
+                    let _ = app.emit(EVENT_PREVENTION_TOGGLED, now_active);
                 }
                 "screensaver" => {
                     open_screensaver_window(app);
@@ -109,6 +123,7 @@ fn open_screensaver_window(app: &tauri::AppHandle) {
         .skip_taskbar(true)
         .resizable(false)
         .background_color(Color(0x00, 0x00, 0x00, 0xFF))
+        .content_protected(true)
         .build();
     }
 }
@@ -118,13 +133,26 @@ fn open_settings_window(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     } else {
+        // Get primary monitor to calculate 80% screen size
+        let (win_width, win_height, min_width) = app
+            .primary_monitor()
+            .ok()
+            .flatten()
+            .map(|m| {
+                let w = m.size().width as f64 / m.scale_factor() as f64;
+                let h = m.size().height as f64 / m.scale_factor() as f64;
+                (w * 0.8, h * 0.8, w * 0.56)
+            })
+            .unwrap_or((1536.0, 864.0, 1075.0));
+
         let _ = tauri::WebviewWindowBuilder::new(
             app,
             "settings",
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("AntiSleep Settings")
-        .inner_size(600.0, 700.0)
+        .inner_size(win_width, win_height)
+        .min_inner_size(min_width, 600.0)
         .decorations(true)
         .center()
         .resizable(true)

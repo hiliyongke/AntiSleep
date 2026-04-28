@@ -5,6 +5,8 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { TrayPanel } from './components/tray/TrayPanel'
 import { ScreensaverWindow } from './components/screensaver/ScreensaverWindow'
 import { SettingsPanel } from './components/settings/SettingsPanel'
+import { useIdleScreensaver } from './hooks/useIdleScreensaver'
+import { Onboarding } from './components/onboarding/Onboarding'
 
 /**
  * Resolve current window label following Tauri v2 best practice.
@@ -46,10 +48,15 @@ function useWindowLabel(): string {
 
 function App() {
   const initApp = useAppStore((s) => s.initApp)
+  const settings = useAppStore((s) => s.settings)
+  const completeOnboarding = useAppStore((s) => s.completeOnboarding)
 
   useEffect(() => {
     initApp()
   }, [initApp])
+
+  // Auto-launch screensaver on idle
+  useIdleScreensaver()
 
   const windowLabel = useWindowLabel()
 
@@ -78,6 +85,19 @@ function App() {
   }
 
   // Main window (hidden, just for tray management)
+  // Show onboarding for first-time users
+
+  if (!settings.onboardingCompleted && settings.autoStart === false && !settings.minimizeToTray) {
+    // Likely first launch — show onboarding
+    return (
+      <ErrorBoundary>
+        <div className="w-screen h-screen" style={{ backgroundColor: 'var(--bg-mica)' }}>
+          <Onboarding onComplete={completeOnboarding} />
+        </div>
+      </ErrorBoundary>
+    )
+  }
+
   return (
     <div className="w-screen h-screen bg-background-medium flex items-center justify-center">
       <div className="text-text-secondary text-sm">

@@ -27,16 +27,16 @@ export function StatusIndicator({ active, statusColor, remainingText, expiringSo
 
       {/* Status text */}
       <div className="flex flex-col">
-        <span className="text-sm font-medium text-text-primary">
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
           {active ? '防锁屏已激活' : '防锁屏已暂停'}
         </span>
         {active && remainingText && (
-          <span className={`text-xs ${expiringSoon ? 'text-primary-orange' : 'text-text-secondary'}`}>
+          <span className="text-xs" style={{ color: expiringSoon ? '#D83B01' : 'var(--text-secondary)' }}>
             剩余 {remainingText}
           </span>
         )}
         {!active && (
-          <span className="text-xs text-text-tertiary">点击下方按钮开始</span>
+          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>点击下方按钮开始</span>
         )}
       </div>
     </div>

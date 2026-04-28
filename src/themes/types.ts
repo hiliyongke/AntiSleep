@@ -14,4 +14,7 @@ export interface ThemeRenderer {
   render(deltaTime: number): void
   resize(width: number, height: number): void
   destroy(): void
+
+  // Optional: set clock style (for clock theme)
+  setClockStyle?(style: 'analog' | 'digital'): void
 }

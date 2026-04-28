@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../../stores/appStore'
-import { getThemeRenderer } from '../../themes/registry'
+import { getThemeRenderer, removeThemeInstance } from '../../themes/registry'
 
 export function EffectLayer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -15,9 +15,13 @@ export function EffectLayer() {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Destroy old renderer
+    // Destroy old renderer and clear canvas
     if (rendererRef.current) {
       rendererRef.current.destroy()
+    }
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
     }
 
     const renderer = getThemeRenderer(theme.current)
@@ -29,28 +33,48 @@ export function EffectLayer() {
       customColor: theme.customColor,
       opacity: theme.opacity,
     })
+
+    // Sync clock style if applicable
+    if (theme.current === 'clock' && renderer.setClockStyle) {
+      renderer.setClockStyle(theme.clockStyle)
+    }
+
     rendererRef.current = renderer
     lastTimeRef.current = performance.now()
 
-    // Start render loop
+    // Start render loop with frame rate limiting (~60fps)
+    let lastFrameTime = 0
+    const FRAME_INTERVAL = 1000 / 60
     const render = (time: number) => {
+      animRef.current = requestAnimationFrame(render)
+      const elapsed = time - lastFrameTime
+      if (elapsed < FRAME_INTERVAL) return
       const delta = (time - lastTimeRef.current) / 1000
       lastTimeRef.current = time
+      lastFrameTime = time
       if (rendererRef.current) {
         rendererRef.current.render(delta)
       }
-      animRef.current = requestAnimationFrame(render)
     }
     animRef.current = requestAnimationFrame(render)
 
     return () => {
       cancelAnimationFrame(animRef.current)
       if (rendererRef.current) {
+        removeThemeInstance(theme.current)
         rendererRef.current.destroy()
         rendererRef.current = null
       }
     }
   }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity])
+
+  // Sync clock style when it changes (without re-creating renderer)
+  useEffect(() => {
+    const renderer = rendererRef.current
+    if (theme.current === 'clock' && renderer && renderer.setClockStyle) {
+      renderer.setClockStyle(theme.clockStyle)
+    }
+  }, [theme.clockStyle, theme.current])
 
   // Resize handler
   useEffect(() => {

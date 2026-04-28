@@ -22,11 +22,11 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full h-full flex items-center justify-center bg-[#202020] p-8">
+        <div className="w-full h-full flex items-center justify-center p-8" style={{ backgroundColor: 'var(--bg-mica)' }}>
           <div className="text-center space-y-3">
             <div className="text-4xl">⚠️</div>
-            <p className="text-sm text-white/80">页面渲染出错</p>
-            <p className="text-xs text-white/40 max-w-xs break-all">{this.state.error?.message}</p>
+            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>页面渲染出错</p>
+            <p className="text-xs max-w-xs break-all" style={{ color: 'var(--text-tertiary)' }}>{this.state.error?.message}</p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
               className="fluent-btn-primary text-sm mt-2"

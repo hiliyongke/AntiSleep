@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Hook for managing screensaver window visibility and floating controls
+ * Hook for managing screensaver window visibility and floating controls.
  */
 export function useScreensaver() {
   const [controlsVisible, setControlsVisible] = useState(false)

@@ -39,6 +39,7 @@ fn main() {
             commands::stop_prevention,
             commands::get_remaining_time,
             commands::list_processes,
+            commands::list_processes_detailed,
             commands::is_charging,
         ])
         .build(tauri::generate_context!())

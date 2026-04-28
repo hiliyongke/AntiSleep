@@ -10,6 +10,11 @@ export function WallpaperLayer() {
   const wallpaper = useAppStore((s) => s.wallpaper)
   const source = wallpaper.current
   const opacity = wallpaper.opacity / 100
+  const blur = wallpaper.blur
+
+  const blurStyle: React.CSSProperties = blur > 0
+    ? { filter: `blur(${blur}px)` }
+    : {}
 
   if (!source || source.id === 'built-in-black') {
     return <div className="absolute inset-0 z-10 bg-black" />
@@ -20,7 +25,7 @@ export function WallpaperLayer() {
     return (
       <div
         className="absolute inset-0 z-10"
-        style={{ opacity, background: getGradientCss(source) }}
+        style={{ opacity, background: getGradientCss(source), ...blurStyle }}
       />
     )
   }
@@ -37,6 +42,7 @@ export function WallpaperLayer() {
           muted
           playsInline
           className="w-full h-full object-cover"
+          style={blurStyle}
         />
       </div>
     )
@@ -49,6 +55,7 @@ export function WallpaperLayer() {
         alt=""
         className="w-full h-full object-cover"
         draggable={false}
+        style={blurStyle}
       />
     </div>
   )
