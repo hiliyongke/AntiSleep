@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
-import { formatCombo } from '../../lib/format'
 import { RotateCcw } from 'lucide-react'
 
 export function AboutSettings() {
-  const settings = useAppStore((s) => s.settings)
   const [confirmReset, setConfirmReset] = useState(false)
 
   return (
@@ -46,40 +44,41 @@ export function AboutSettings() {
           <FeatureCard icon="⚡" title="智能场景" desc="充电/进程自动激活" />
         </div>
       </div>
-
       <div className="fluent-divider" />
 
-      {/* Keyboard shortcuts */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>快捷键</h4>
-        <div className="space-y-1.5">
-          <ShortcutRow keys={formatCombo(settings.shortcutEnable)} desc="开启防锁屏" />
-          <ShortcutRow keys={formatCombo(settings.shortcutDisable)} desc="关闭防锁屏" />
-          <ShortcutRow keys={formatCombo(settings.shortcutScreensaver)} desc="打开屏保" />
-          <ShortcutRow keys="ESC" desc="退出屏保" />
+      {/* Reset configuration */}
+      <div
+        className="rounded-xl border p-4 space-y-3"
+        style={{
+          backgroundColor: 'var(--bg-subtle)',
+          borderColor: confirmReset ? '#C42B1C55' : 'var(--border-fluent)',
+        }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>重置默认配置</p>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
+              将当前应用配置重置为默认状态，包括壁纸、特效、文案和快捷键。
+            </p>
+          </div>
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#C42B1C18', color: '#C42B1C' }}>
+            <RotateCcw size={16} />
+          </div>
         </div>
-      </div>
 
-      <div className="fluent-divider" />
-
-      {/* System info */}
-      <div className="space-y-1.5">
-        <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>系统信息</h4>
-        <InfoRow label="技术栈" value="Tauri 2 + React 18 + Rust" />
-        <InfoRow label="渲染引擎" value="Canvas + CSS Animations" />
-        <InfoRow label="状态管理" value="Zustand + Tauri Store" />
-      </div>
-
-      <div className="fluent-divider" />
-
-      {/* Factory reset */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>数据管理</h4>
         {confirmReset ? (
-          <div className="p-3 rounded-md space-y-2" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-fluent)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>确定要恢复出厂设置吗？</p>
-            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>所有设置（壁纸、特效、文案、快捷键等）将恢复为默认值，此操作不可撤销。</p>
-            <div className="flex gap-2 pt-1">
+          <div className="space-y-3 pt-1">
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              确认后将立即重置配置，当前自定义内容无法恢复。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="px-3 py-1.5 rounded-md text-xs transition-colors"
+                style={{ backgroundColor: 'var(--bg-light)', color: 'var(--text-secondary)', border: '1px solid var(--border-fluent)' }}
+              >
+                取消
+              </button>
               <button
                 onClick={() => {
                   useAppStore.getState().resetToFactory()
@@ -90,63 +89,23 @@ export function AboutSettings() {
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A02318' }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#C42B1C' }}
               >
-                确认恢复
-              </button>
-              <button
-                onClick={() => setConfirmReset(false)}
-                className="px-3 py-1.5 rounded-md text-xs transition-colors"
-                style={{ backgroundColor: 'var(--bg-light)', color: 'var(--text-secondary)', border: '1px solid var(--border-fluent)' }}
-              >
-                取消
+                确认重置
               </button>
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirmReset(true)}
-            className="w-full p-2.5 rounded-md flex items-center gap-2.5 text-left transition-colors border border-transparent hover:border-[var(--border-fluent-hover)]"
-            style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-          >
-            <RotateCcw size={16} style={{ color: '#C42B1C' }} />
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text-primary)' }}>恢复出厂设置</p>
-              <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>清除所有自定义设置，恢复为默认值</p>
-            </div>
-          </button>
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={() => setConfirmReset(true)}
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              style={{ backgroundColor: '#C42B1C', color: '#FFFFFF' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A02318' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#C42B1C' }}
+            >
+              重置配置
+            </button>
+          </div>
         )}
-      </div>
-
-      <div className="fluent-divider" />
-
-      {/* Links & license */}
-      <div className="space-y-2">
-        <div className="flex gap-3">
-          <a
-            href="https://github.com/nicepkg/antisleep"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-accent hover:underline"
-          >
-            GitHub
-          </a>
-          <a
-            href="https://github.com/nicepkg/antisleep/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-accent hover:underline"
-          >
-            反馈问题
-          </a>
-          <a
-            href="https://github.com/nicepkg/antisleep#readme"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-accent hover:underline"
-          >
-            使用文档
-          </a>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--text-disabled)' }}>MIT License &copy; 2024-2026 AntiSleep</p>
       </div>
     </div>
   )
@@ -163,25 +122,3 @@ function FeatureCard({ icon, title, desc }: { icon: string; title: string; desc:
     </div>
   )
 }
-
-function ShortcutRow({ keys, desc }: { keys: string; desc: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{desc}</span>
-      <kbd className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--bg-light)', color: 'var(--text-tertiary)', border: '1px solid var(--border-fluent)' }}>
-        {keys}
-      </kbd>
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{label}</span>
-      <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{value}</span>
-    </div>
-  )
-}
-
-

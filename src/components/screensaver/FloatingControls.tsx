@@ -1,6 +1,7 @@
 import { useAppStore } from '../../stores/appStore'
 import { useSleepPrevention } from '../../hooks/useSleepPrevention'
-import { Palette, Image, ScrollText, X } from 'lucide-react'
+import { closeCurrentAppWindow } from '../../lib/window'
+import { Palette, ScrollText, X } from 'lucide-react'
 
 interface FloatingControlsProps {
   visible: boolean
@@ -14,11 +15,9 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
   const { getRemainingTimeText } = useSleepPrevention()
 
   const handleClose = () => {
-    if (window.__TAURI__) {
-      window.__TAURI__.core.invoke('plugin:window|close', { label: 'screensaver' }).catch(() => {
-        window.close()
-      })
-    }
+    closeCurrentAppWindow().catch(() => {
+      window.close()
+    })
   }
 
   return (

@@ -21,6 +21,7 @@ export class ClockRenderer implements ThemeRenderer {
   private clockStyle: 'analog' | 'digital' = 'analog'
   private digits: DigitState[] = []
   private lastTimeStr = ''
+  private orbitDots: { angle: number; radius: number; speed: number; size: number }[] = []
 
   init(canvas: HTMLCanvasElement, config: ThemeConfig): void {
     this.canvas = canvas
@@ -34,6 +35,12 @@ export class ClockRenderer implements ThemeRenderer {
       isFlipping: false,
     }))
     this.lastTimeStr = '000000'
+    this.orbitDots = Array.from({ length: 10 }, () => ({
+      angle: Math.random() * Math.PI * 2,
+      radius: 0.22 + Math.random() * 0.12,
+      speed: 0.08 + Math.random() * 0.15,
+      size: 1 + Math.random() * 2,
+    }))
   }
 
   setClockStyle(style: 'analog' | 'digital'): void {
@@ -108,6 +115,16 @@ export class ClockRenderer implements ThemeRenderer {
     glowGrad.addColorStop(1, accentColor + '00')
     ctx.fillStyle = glowGrad
     ctx.fillRect(0, 0, w, h)
+
+    for (const dot of this.orbitDots) {
+      dot.angle += _deltaTime * dot.speed
+      const dx = Math.cos(dot.angle) * baseSize * dot.radius
+      const dy = Math.sin(dot.angle) * baseSize * dot.radius * 0.55
+      ctx.beginPath()
+      ctx.arc(w / 2 + dx, h / 2 + dy, dot.size, 0, Math.PI * 2)
+      ctx.fillStyle = accentColor + '55'
+      ctx.fill()
+    }
   }
 
   private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -149,6 +166,17 @@ export class ClockRenderer implements ThemeRenderer {
     ambientGrad.addColorStop(1, color + '00')
     ctx.fillStyle = ambientGrad
     ctx.fillRect(0, 0, w, h)
+
+    for (const dot of this.orbitDots) {
+      dot.angle += 0.0025
+      const orbitRadius = radius * (1.15 + dot.radius * 0.4)
+      const ox = cx + Math.cos(dot.angle) * orbitRadius
+      const oy = cy + Math.sin(dot.angle) * orbitRadius * 0.82
+      ctx.beginPath()
+      ctx.arc(ox, oy, dot.size * 0.6, 0, Math.PI * 2)
+      ctx.fillStyle = accentColor + '44'
+      ctx.fill()
+    }
 
     // ── Watch face — subtle gradient like frosted glass ──
     const faceGrad = ctx.createRadialGradient(cx, cy - radius * 0.3, 0, cx, cy, radius)

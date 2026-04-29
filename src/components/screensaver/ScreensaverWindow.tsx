@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { emit } from '@tauri-apps/api/event'
 import { useScreensaver } from '../../hooks/useScreensaver'
 import { useAppStore } from '../../stores/appStore'
 import { WallpaperLayer } from './WallpaperLayer'
@@ -10,6 +12,14 @@ export function ScreensaverWindow() {
   const { controlsVisible } = useScreensaver()
   const theme = useAppStore((s) => s.theme)
   const marquee = useAppStore((s) => s.marquee)
+
+  useEffect(() => {
+    emit('antisleep://screensaver-opened').catch(() => {})
+
+    return () => {
+      emit('antisleep://screensaver-closed').catch(() => {})
+    }
+  }, [])
 
   return (
     <div className="w-screen h-screen bg-black relative overflow-hidden">

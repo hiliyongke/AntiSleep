@@ -129,12 +129,8 @@ export interface AppSettings {
   shortcutEnable: string
   shortcutDisable: string
   shortcutScreensaver: string
-  // Enhanced settings
-  minimizeToTray: boolean
   expiryWarning: boolean
   expiryWarningMinutes: number
-  soundEnabled: boolean
-  language: 'zh-CN' | 'en-US'
   pollIntervalSeconds: number
   // Theme preference
   themePreference: ThemePreference

@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../../stores/appStore'
-import { getThemeRenderer, removeThemeInstance } from '../../themes/registry'
+import { getThemeRenderer } from '../../themes/registry'
+
+function syncCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number } {
+  const width = Math.max(1, window.innerWidth)
+  const height = Math.max(1, window.innerHeight)
+
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+
+  return { width, height }
+}
+
+const MAX_DELTA_SECONDS = 0.05
 
 export function EffectLayer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -16,6 +28,7 @@ export function EffectLayer() {
     if (!canvas) return
 
     // Destroy old renderer and clear canvas
+    cancelAnimationFrame(animRef.current)
     if (rendererRef.current) {
       rendererRef.current.destroy()
     }
@@ -23,6 +36,8 @@ export function EffectLayer() {
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
     }
+
+    const { width, height } = syncCanvasSize(canvas)
 
     const renderer = getThemeRenderer(theme.current)
     if (!renderer) return
@@ -35,6 +50,7 @@ export function EffectLayer() {
     })
 
     // Sync clock style if applicable
+    renderer.resize(width, height)
     if (theme.current === 'clock' && renderer.setClockStyle) {
       renderer.setClockStyle(theme.clockStyle)
     }
@@ -49,9 +65,9 @@ export function EffectLayer() {
       animRef.current = requestAnimationFrame(render)
       const elapsed = time - lastFrameTime
       if (elapsed < FRAME_INTERVAL) return
-      const delta = (time - lastTimeRef.current) / 1000
-      lastTimeRef.current = time
       lastFrameTime = time
+      const delta = Math.min((time - lastTimeRef.current) / 1000, MAX_DELTA_SECONDS)
+      lastTimeRef.current = time
       if (rendererRef.current) {
         rendererRef.current.render(delta)
       }
@@ -61,12 +77,11 @@ export function EffectLayer() {
     return () => {
       cancelAnimationFrame(animRef.current)
       if (rendererRef.current) {
-        removeThemeInstance(theme.current)
         rendererRef.current.destroy()
         rendererRef.current = null
       }
     }
-  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity])
+  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity, theme.clockStyle])
 
   // Sync clock style when it changes (without re-creating renderer)
   useEffect(() => {
@@ -81,10 +96,9 @@ export function EffectLayer() {
     const handleResize = () => {
       const canvas = canvasRef.current
       if (!canvas) return
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      const { width, height } = syncCanvasSize(canvas)
       if (rendererRef.current) {
-        rendererRef.current.resize(canvas.width, canvas.height)
+        rendererRef.current.resize(width, height)
       }
     }
     handleResize()

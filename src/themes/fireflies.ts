@@ -13,6 +13,16 @@ interface Firefly {
   pulsePhase: number
   color: string
   trail: { x: number; y: number; alpha: number }[]
+  orbit: number
+}
+
+interface MistPatch {
+  x: number
+  y: number
+  radius: number
+  driftX: number
+  driftY: number
+  alpha: number
 }
 
 export class FirefliesRenderer implements ThemeRenderer {
@@ -26,6 +36,7 @@ export class FirefliesRenderer implements ThemeRenderer {
   private ctx: CanvasRenderingContext2D | null = null
   private config: ThemeConfig | null = null
   private fireflies: Firefly[] = []
+  private mist: MistPatch[] = []
   private time = 0
   private mouseX = -1000
   private mouseY = -1000
@@ -65,6 +76,17 @@ export class FirefliesRenderer implements ThemeRenderer {
       pulsePhase: Math.random() * Math.PI * 2,
       color: colors[Math.floor(Math.random() * colors.length)],
       trail: [],
+      orbit: 6 + Math.random() * 20,
+    }))
+
+    const mistCount = this.config?.density === 'low' ? 3 : this.config?.density === 'high' ? 7 : 5
+    this.mist = Array.from({ length: mistCount }, () => ({
+      x: Math.random() * this.canvas!.width,
+      y: Math.random() * this.canvas!.height,
+      radius: 80 + Math.random() * 180,
+      driftX: (Math.random() - 0.5) * 4,
+      driftY: (Math.random() - 0.5) * 3,
+      alpha: 0.018 + Math.random() * 0.03,
     }))
   }
 
@@ -77,6 +99,21 @@ export class FirefliesRenderer implements ThemeRenderer {
     // Very slow trail for dreamy effect
     ctx.fillStyle = 'rgba(2, 6, 12, 0.08)'
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+
+    for (const mist of this.mist) {
+      mist.x += mist.driftX * deltaTime * speed
+      mist.y += mist.driftY * deltaTime * speed
+      if (mist.x < -mist.radius) mist.x = this.canvas.width + mist.radius
+      if (mist.x > this.canvas.width + mist.radius) mist.x = -mist.radius
+      if (mist.y < -mist.radius) mist.y = this.canvas.height + mist.radius
+      if (mist.y > this.canvas.height + mist.radius) mist.y = -mist.radius
+
+      const grad = ctx.createRadialGradient(mist.x, mist.y, 0, mist.x, mist.y, mist.radius)
+      grad.addColorStop(0, `rgba(255, 225, 140, ${mist.alpha})`)
+      grad.addColorStop(1, 'rgba(255, 225, 140, 0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(mist.x - mist.radius, mist.y - mist.radius, mist.radius * 2, mist.radius * 2)
+    }
 
     for (const f of this.fireflies) {
       // Mouse repulsion
@@ -92,6 +129,8 @@ export class FirefliesRenderer implements ThemeRenderer {
       // Gentle floating motion with sine wave
       f.vx += Math.sin(this.time * 0.5 + f.pulsePhase) * 0.02
       f.vy += Math.cos(this.time * 0.3 + f.pulsePhase) * 0.015
+      f.vx += Math.cos(this.time * 0.7 + f.pulsePhase) * 0.0015 * f.orbit
+      f.vy += Math.sin(this.time * 0.8 + f.pulsePhase) * 0.0015 * f.orbit
 
       // Damping
       f.vx *= 0.995
@@ -169,6 +208,7 @@ export class FirefliesRenderer implements ThemeRenderer {
       this.canvas.removeEventListener('mouseleave', this.handleMouseLeave)
     }
     this.fireflies = []
+    this.mist = []
     this.ctx = null
     this.canvas = null
   }

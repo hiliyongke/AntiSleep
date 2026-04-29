@@ -33,6 +33,12 @@ interface Nebula {
   driftY: number
 }
 
+interface Constellation {
+  points: number[]
+  alpha: number
+  phase: number
+}
+
 export class StarfieldRenderer implements ThemeRenderer {
   readonly id = 'starfield' as const
   readonly name = '星空'
@@ -45,6 +51,7 @@ export class StarfieldRenderer implements ThemeRenderer {
   private stars: Star[] = []
   private shootingStars: ShootingStar[] = []
   private nebulae: Nebula[] = []
+  private constellations: Constellation[] = []
   private config: ThemeConfig | null = null
   private time = 0
   private baseColor = { r: 255, g: 255, b: 255 }
@@ -57,6 +64,7 @@ export class StarfieldRenderer implements ThemeRenderer {
     this.baseColor = this.hexToRgb(color)
     this.resetStars()
     this.resetNebulae()
+    this.resetConstellations()
   }
 
   private hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -126,6 +134,22 @@ export class StarfieldRenderer implements ThemeRenderer {
       driftX: (Math.random() - 0.5) * 4,
       driftY: (Math.random() - 0.5) * 4,
     }))
+  }
+
+  private resetConstellations(): void {
+    if (!this.canvas) return
+    const count = this.config?.density === 'low' ? 2 : this.config?.density === 'high' ? 5 : 3
+    this.constellations = Array.from({ length: count }, () => {
+      const indices = new Set<number>()
+      while (indices.size < 4) {
+        indices.add(Math.floor(Math.random() * this.stars.length))
+      }
+      return {
+        points: Array.from(indices),
+        alpha: 0.08 + Math.random() * 0.08,
+        phase: Math.random() * Math.PI * 2,
+      }
+    })
   }
 
   render(deltaTime: number): void {
@@ -204,6 +228,20 @@ export class StarfieldRenderer implements ThemeRenderer {
       }
     }
 
+    for (const constellation of this.constellations) {
+      const pulse = 0.45 + 0.55 * Math.sin(this.time * 0.4 + constellation.phase)
+      ctx.beginPath()
+      constellation.points.forEach((index, pointIndex) => {
+        const star = this.stars[index]
+        if (!star) return
+        if (pointIndex === 0) ctx.moveTo(star.x, star.y)
+        else ctx.lineTo(star.x, star.y)
+      })
+      ctx.strokeStyle = this.starColor(constellation.alpha * pulse)
+      ctx.lineWidth = 0.8
+      ctx.stroke()
+    }
+
     // Shooting stars with curved trails and head glow
     if (Math.random() < 0.006 * speed) {
       const startSide = Math.random() < 0.5 ? 'top' : 'left'
@@ -270,12 +308,14 @@ export class StarfieldRenderer implements ThemeRenderer {
   resize(width: number, height: number): void {
     this.resetStars()
     this.resetNebulae()
+    this.resetConstellations()
   }
 
   destroy(): void {
     this.stars = []
     this.shootingStars = []
     this.nebulae = []
+    this.constellations = []
     this.ctx = null
     this.canvas = null
   }

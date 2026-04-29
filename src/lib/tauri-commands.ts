@@ -6,7 +6,7 @@ import type { PreventionMode, ProcessInfo } from '../types'
 
 const COMMAND_START_PREVENTION = 'start_prevention'
 const COMMAND_STOP_PREVENTION = 'stop_prevention'
-const COMMAND_GET_REMAINING_TIME = 'get_remaining_time'
+const COMMAND_GET_PREVENTION_STATUS = 'get_prevention_status'
 const COMMAND_LIST_PROCESSES = 'list_processes'
 const COMMAND_LIST_PROCESSES_DETAILED = 'list_processes_detailed'
 const COMMAND_IS_CHARGING = 'is_charging'
@@ -30,9 +30,17 @@ export async function stopPrevention(assertionId: number): Promise<void> {
   return invoke<void>(COMMAND_STOP_PREVENTION, { assertionId })
 }
 
-/** Get remaining time in seconds */
-export async function getRemainingTime(): Promise<number> {
-  return invoke<number>(COMMAND_GET_REMAINING_TIME)
+export interface PreventionStatus {
+  active: boolean
+  assertionId: number | null
+}
+
+/** Read current prevention runtime state from the backend */
+export async function getPreventionStatus(): Promise<PreventionStatus> {
+  if (typeof window !== 'undefined' && !window.__TAURI__) {
+    return { active: false, assertionId: null }
+  }
+  return invoke<PreventionStatus>(COMMAND_GET_PREVENTION_STATUS)
 }
 
 /** List running process names */

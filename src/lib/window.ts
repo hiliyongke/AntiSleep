@@ -24,6 +24,7 @@ export function getCurrentAppWindowLabel(): AppWindowLabel {
 export async function openAppWindow(label: Exclude<AppWindowLabel, 'main'>): Promise<void> {
   const existing = await WebviewWindow.getByLabel(label)
   if (existing) {
+    await existing.show()
     await existing.setFocus()
     return
   }

@@ -28,6 +28,22 @@ pub struct ProcessInfo {
     pub memory_bytes: u64,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PreventionStatus {
+    pub active: bool,
+    pub assertion_id: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn get_prevention_status() -> Result<PreventionStatus, String> {
+    let assertion_id = sleep_prevention::active_assertion_id();
+    Ok(PreventionStatus {
+        active: assertion_id.is_some(),
+        assertion_id,
+    })
+}
+
 #[tauri::command]
 pub async fn start_prevention(
     mode: PreventionModeDto,
@@ -38,11 +54,6 @@ pub async fn start_prevention(
 #[tauri::command]
 pub async fn stop_prevention(assertion_id: u32) -> Result<(), String> {
     sleep_prevention::stop(assertion_id)
-}
-
-#[tauri::command]
-pub async fn get_remaining_time() -> Result<Option<u64>, String> {
-    sleep_prevention::get_remaining_seconds()
 }
 
 #[tauri::command]

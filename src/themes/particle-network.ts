@@ -15,6 +15,14 @@ interface Link {
   b: number
 }
 
+interface PulseField {
+  x: number
+  y: number
+  radius: number
+  life: number
+  maxLife: number
+}
+
 export class ParticleNetworkRenderer implements ThemeRenderer {
   readonly id = 'particle-network' as const
   readonly name = '粒子网络'
@@ -28,6 +36,7 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
   private time = 0
   private nodes: Node[] = []
   private links: Link[] = []
+  private pulseFields: PulseField[] = []
   private mouseX = -1000
   private mouseY = -1000
 
@@ -43,6 +52,16 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
   private handleMouseMove = (e: MouseEvent) => {
     this.mouseX = e.clientX
     this.mouseY = e.clientY
+
+    if (Math.random() < 0.08) {
+      this.pulseFields.push({
+        x: this.mouseX,
+        y: this.mouseY,
+        radius: 0,
+        life: 1,
+        maxLife: 1.2 + Math.random() * 0.8,
+      })
+    }
   }
 
   private handleMouseLeave = () => {
@@ -92,9 +111,56 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
     const speed = 0.5 + this.config.speed * 0.8
     this.time += deltaTime * speed
 
+    if (Math.random() < 0.012 * speed) {
+      this.pulseFields.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        radius: 0,
+        life: 1,
+        maxLife: 2.2 + Math.random() * 1.2,
+      })
+    }
+
     // Soft trail fade
     ctx.fillStyle = 'rgba(4, 6, 12, 0.22)'
     ctx.fillRect(0, 0, w, h)
+
+    // Atmospheric pulse fields add depth and help the network feel alive.
+    for (let i = this.pulseFields.length - 1; i >= 0; i--) {
+      const pulse = this.pulseFields[i]
+      pulse.radius += deltaTime * speed * 90
+      pulse.life -= deltaTime / pulse.maxLife
+
+      if (pulse.life <= 0) {
+        this.pulseFields.splice(i, 1)
+        continue
+      }
+
+      const alpha = pulse.life * 0.22
+      ctx.beginPath()
+      ctx.arc(pulse.x, pulse.y, pulse.radius, 0, Math.PI * 2)
+      ctx.strokeStyle = color + this.alphaHex(alpha)
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+
+      const field = ctx.createRadialGradient(
+        pulse.x,
+        pulse.y,
+        Math.max(0, pulse.radius * 0.1),
+        pulse.x,
+        pulse.y,
+        pulse.radius * 1.35,
+      )
+      field.addColorStop(0, color + this.alphaHex(alpha * 0.28))
+      field.addColorStop(1, color + '00')
+      ctx.fillStyle = field
+      ctx.fillRect(
+        pulse.x - pulse.radius * 1.35,
+        pulse.y - pulse.radius * 1.35,
+        pulse.radius * 2.7,
+        pulse.radius * 2.7,
+      )
+    }
 
     // Update nodes
     for (const n of this.nodes) {
@@ -106,6 +172,18 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
         const f = ((160 - md) / 160) * 60
         n.vx += (mdx / md) * f * deltaTime
         n.vy += (mdy / md) * f * deltaTime
+      }
+
+      for (const pulse of this.pulseFields) {
+        const pdx = n.x - pulse.x
+        const pdy = n.y - pulse.y
+        const pDist = Math.sqrt(pdx * pdx + pdy * pdy)
+        const pBand = Math.abs(pDist - pulse.radius)
+        if (pBand < 40 && pDist > 0) {
+          const impulse = ((40 - pBand) / 40) * pulse.life * 24
+          n.vx += (pdx / pDist) * impulse * deltaTime
+          n.vy += (pdy / pDist) * impulse * deltaTime
+        }
       }
 
       n.vx *= 0.99
@@ -133,6 +211,23 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
       const fade = 1 - dist / maxLinkDist
       const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.8 + link.a * 0.4)
       const alpha = fade * pulse * 0.5
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2
+
+      for (const pulseField of this.pulseFields) {
+        const pdx = mx - pulseField.x
+        const pdy = my - pulseField.y
+        const pDist = Math.sqrt(pdx * pdx + pdy * pdy)
+        if (Math.abs(pDist - pulseField.radius) < 55) {
+          const flash = (1 - Math.abs(pDist - pulseField.radius) / 55) * pulseField.life
+          ctx.beginPath()
+          ctx.moveTo(a.x, a.y)
+          ctx.lineTo(b.x, b.y)
+          ctx.strokeStyle = '#FFFFFF' + this.alphaHex(flash * 0.18)
+          ctx.lineWidth = 2.2
+          ctx.stroke()
+        }
+      }
 
       // Outer soft glow line
       ctx.beginPath()
@@ -234,6 +329,7 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
     }
     this.nodes = []
     this.links = []
+    this.pulseFields = []
     this.ctx = null
     this.canvas = null
   }

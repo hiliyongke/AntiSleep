@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../stores/appStore'
+
+interface UseSleepPreventionOptions {
+  manageLifecycle?: boolean
+}
 
 /** Send a system notification (safe no-op in browser) */
 function sendNotification(title: string, body: string) {
@@ -18,7 +22,8 @@ function sendNotification(title: string, body: string) {
 /**
  * Hook for managing sleep prevention state and countdown
  */
-export function useSleepPrevention() {
+export function useSleepPrevention(options: UseSleepPreventionOptions = {}) {
+  const { manageLifecycle = false } = options
   const prevention = useAppStore((s) => s.prevention)
   const settings = useAppStore((s) => s.settings)
   const togglePrevention = useAppStore((s) => s.togglePrevention)
@@ -29,9 +34,27 @@ export function useSleepPrevention() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const warningFiredRef = useRef(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!prevention.active) {
+      setNow(Date.now())
+      return
+    }
+
+    const interval = setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [prevention.active])
 
   // Auto-stop when duration expires + expiry warning
   useEffect(() => {
+    if (!manageLifecycle) {
+      return
+    }
+
     // Reset warning flag when prevention starts
     if (prevention.active && prevention.startTime) {
       const elapsed = (Date.now() - prevention.startTime) / 1000
@@ -80,13 +103,13 @@ export function useSleepPrevention() {
         clearInterval(timerRef.current)
       }
     }
-  }, [prevention.active, prevention.duration, prevention.startTime, stopPreventionAction, settings.expiryWarning, settings.expiryWarningMinutes])
+  }, [manageLifecycle, prevention.active, prevention.duration, prevention.startTime, stopPreventionAction, settings.expiryWarning, settings.expiryWarningMinutes])
 
   const getRemainingTimeText = useCallback((): string => {
     if (!prevention.active || !prevention.startTime) return ''
     if (prevention.duration === null) return '∞'
 
-    const elapsed = (Date.now() - prevention.startTime) / 1000
+    const elapsed = (now - prevention.startTime) / 1000
     const totalSeconds = (prevention.duration ?? 0) * 60
     const remaining = Math.max(0, totalSeconds - elapsed)
 
@@ -98,25 +121,25 @@ export function useSleepPrevention() {
       return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     }
     return `${minutes}:${String(seconds).padStart(2, '0')}`
-  }, [prevention])
+  }, [now, prevention])
 
   const getStatusColor = useCallback((): string => {
     if (!prevention.active) return '#8E8E93' // gray
     if (prevention.duration !== null && prevention.startTime) {
-      const elapsed = (Date.now() - prevention.startTime) / 1000
+      const elapsed = (now - prevention.startTime) / 1000
       const totalSeconds = prevention.duration * 60
       const remaining = totalSeconds - elapsed
       if (remaining < 300) return '#FF9F0A' // orange - less than 5 min
     }
     return '#30D158' // green
-  }, [prevention])
+  }, [now, prevention])
 
   const isExpiringSoon = useCallback((): boolean => {
     if (!prevention.active || prevention.duration === null || !prevention.startTime) return false
-    const elapsed = (Date.now() - prevention.startTime) / 1000
+    const elapsed = (now - prevention.startTime) / 1000
     const totalSeconds = prevention.duration * 60
     return totalSeconds - elapsed < 300
-  }, [prevention])
+  }, [now, prevention])
 
   return {
     prevention,

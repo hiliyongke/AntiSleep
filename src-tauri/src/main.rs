@@ -35,9 +35,9 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_prevention_status,
             commands::start_prevention,
             commands::stop_prevention,
-            commands::get_remaining_time,
             commands::list_processes,
             commands::list_processes_detailed,
             commands::is_charging,

@@ -47,6 +47,24 @@ function PreviewWallpaper() {
   )
 }
 
+function syncPreviewCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number } {
+  const parent = canvas.parentElement
+  if (!parent) {
+    return {
+      width: canvas.width,
+      height: canvas.height,
+    }
+  }
+
+  const width = Math.max(1, parent.offsetWidth)
+  const height = Math.max(1, parent.offsetHeight)
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+  return { width, height }
+}
+
+const MAX_PREVIEW_DELTA_SECONDS = 0.05
+
 /* ─── Effect (Canvas theme) sub-component ─── */
 function PreviewEffect() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -59,9 +77,12 @@ function PreviewEffect() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    cancelAnimationFrame(animRef.current)
     if (rendererRef.current) rendererRef.current.destroy()
     const ctx = canvas.getContext('2d')
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const { width, height } = syncPreviewCanvasSize(canvas)
 
     const renderer = getThemeRenderer(theme.current)
     if (!renderer) return
@@ -72,6 +93,7 @@ function PreviewEffect() {
       customColor: theme.customColor,
       opacity: theme.opacity,
     })
+    renderer.resize(width, height)
     if (theme.current === 'clock' && renderer.setClockStyle) {
       renderer.setClockStyle(theme.clockStyle)
     }
@@ -83,7 +105,7 @@ function PreviewEffect() {
       const elapsed = time - (lastFrameTimeRef.current || 0)
       if (elapsed < 1000 / 60) return
       lastFrameTimeRef.current = time
-      const delta = (time - lastTimeRef.current) / 1000
+      const delta = Math.min((time - lastTimeRef.current) / 1000, MAX_PREVIEW_DELTA_SECONDS)
       lastTimeRef.current = time
       if (rendererRef.current) rendererRef.current.render(delta)
     }
@@ -102,19 +124,13 @@ function PreviewEffect() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const parent = canvas.parentElement
-    if (!parent) return
     const handleResize = () => {
-      // Use offsetWidth/offsetHeight which return CSS layout dimensions
-      // (1920×1080) instead of getBoundingClientRect() which returns
-      // the visual size after CSS transform scaling.
-      const w = parent.offsetWidth
-      const h = parent.offsetHeight
-      canvas.width = w
-      canvas.height = h
-      if (rendererRef.current) rendererRef.current.resize(w, h)
+      const { width, height } = syncPreviewCanvasSize(canvas)
+      if (rendererRef.current) rendererRef.current.resize(width, height)
     }
     handleResize()
+    const parent = canvas.parentElement
+    if (!parent) return
     const ro = new ResizeObserver(handleResize)
     ro.observe(parent)
     return () => ro.disconnect()

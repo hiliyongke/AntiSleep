@@ -12,6 +12,17 @@ interface AuroraBand {
   width: number
 }
 
+interface AuroraShard {
+  x: number
+  y: number
+  width: number
+  height: number
+  angle: number
+  speed: number
+  alpha: number
+  color: string
+}
+
 export class AuroraRenderer implements ThemeRenderer {
   readonly id = 'aurora' as const
   readonly name = '极光'
@@ -24,6 +35,7 @@ export class AuroraRenderer implements ThemeRenderer {
   private config: ThemeConfig | null = null
   private time = 0
   private bands: AuroraBand[] = []
+  private shards: AuroraShard[] = []
 
   init(canvas: HTMLCanvasElement, config: ThemeConfig): void {
     this.canvas = canvas
@@ -54,6 +66,18 @@ export class AuroraRenderer implements ThemeRenderer {
       driftSpeed: 0.6 + Math.random() * 1.0,
       color: colors[i % colors.length],
       width: 50 + Math.random() * 80,
+    }))
+
+    const shardCount = this.config?.density === 'low' ? 8 : this.config?.density === 'high' ? 20 : 13
+    this.shards = Array.from({ length: shardCount }, (_, i) => ({
+      x: Math.random(),
+      y: 0.08 + Math.random() * 0.5,
+      width: 50 + Math.random() * 140,
+      height: 140 + Math.random() * 260,
+      angle: -0.22 + Math.random() * 0.44,
+      speed: 0.2 + Math.random() * 0.5,
+      alpha: 0.04 + Math.random() * 0.08,
+      color: colors[i % colors.length],
     }))
   }
 
@@ -129,6 +153,25 @@ export class AuroraRenderer implements ThemeRenderer {
     skyGrad.addColorStop(1, '#061428')
     ctx.fillStyle = skyGrad
     ctx.fillRect(0, 0, w, h)
+
+    for (const shard of this.shards) {
+      shard.x = (shard.x + deltaTime * shard.speed * 0.03 * speed) % 1.15
+      const px = shard.x * w - w * 0.05
+      const py = shard.y * h + Math.sin(this.time * shard.speed + shard.angle * 8) * 20
+
+      ctx.save()
+      ctx.translate(px, py)
+      ctx.rotate(shard.angle)
+      const grad = ctx.createLinearGradient(0, 0, 0, shard.height)
+      grad.addColorStop(0, shard.color + '00')
+      grad.addColorStop(0.15, shard.color + this.alphaHex(shard.alpha * 0.55))
+      grad.addColorStop(0.5, shard.color + this.alphaHex(shard.alpha))
+      grad.addColorStop(0.85, shard.color + this.alphaHex(shard.alpha * 0.35))
+      grad.addColorStop(1, shard.color + '00')
+      ctx.fillStyle = grad
+      ctx.fillRect(-shard.width / 2, -shard.height * 0.1, shard.width, shard.height)
+      ctx.restore()
+    }
 
     // Draw aurora bands back to front
     for (const band of this.bands) {
@@ -239,6 +282,7 @@ export class AuroraRenderer implements ThemeRenderer {
 
   destroy(): void {
     this.bands = []
+    this.shards = []
     this.ctx = null
     this.canvas = null
   }

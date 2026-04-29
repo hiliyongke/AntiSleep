@@ -1,4 +1,4 @@
-import type { ThemeId, ThemeCategory, ThemeConfig } from '../types'
+import type { ThemeId, ThemeCategory } from '../types'
 import type { ThemeRenderer } from './types'
 import { MatrixRenderer } from './matrix'
 import { ParticleNetworkRenderer } from './particle-network'
@@ -31,38 +31,23 @@ const themeMetaList: ThemeMeta[] = [
   { id: 'neon-geo', name: '霓虹几何', category: 'tech', thumbnail: '', defaultColor: '#FF006E' },
 ]
 
-// Singleton instances
-const themeInstances: Map<ThemeId, ThemeRenderer> = new Map()
-
-function getOrCreateRenderer(id: ThemeId): ThemeRenderer | null {
-  // If an instance exists but was destroyed, remove it first
-  const existing = themeInstances.get(id)
-  if (existing) return existing
-
-  let renderer: ThemeRenderer | null = null
+function createRenderer(id: ThemeId): ThemeRenderer | null {
   switch (id) {
-    case 'matrix': renderer = new MatrixRenderer(); break
-    case 'particle-network': renderer = new ParticleNetworkRenderer(); break
-    case 'starfield': renderer = new StarfieldRenderer(); break
-    case 'aurora': renderer = new AuroraRenderer(); break
-    case 'breathing-light': renderer = new BreathingLightRenderer(); break
-    case 'clock': renderer = new ClockRenderer(); break
-    case 'fireflies': renderer = new FirefliesRenderer(); break
-    case 'wave-fluid': renderer = new WaveFluidRenderer(); break
-    case 'neon-geo': renderer = new NeonGeoRenderer(); break
+    case 'matrix': return new MatrixRenderer()
+    case 'particle-network': return new ParticleNetworkRenderer()
+    case 'starfield': return new StarfieldRenderer()
+    case 'aurora': return new AuroraRenderer()
+    case 'breathing-light': return new BreathingLightRenderer()
+    case 'clock': return new ClockRenderer()
+    case 'fireflies': return new FirefliesRenderer()
+    case 'wave-fluid': return new WaveFluidRenderer()
+    case 'neon-geo': return new NeonGeoRenderer()
+    default: return null
   }
-
-  if (renderer) themeInstances.set(id, renderer)
-  return renderer
-}
-
-/** Remove a renderer instance from cache after it has been destroyed */
-export function removeThemeInstance(id: ThemeId): void {
-  themeInstances.delete(id)
 }
 
 export function getThemeRenderer(id: ThemeId): ThemeRenderer | null {
-  return getOrCreateRenderer(id)
+  return createRenderer(id)
 }
 
 export function getThemeMetaList(): ThemeMeta[] {

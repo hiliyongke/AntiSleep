@@ -21,8 +21,8 @@ import {
 import {
   startPrevention,
   stopPrevention,
+  getPreventionStatus,
   listProcesses,
-  listProcessesDetailed,
   isCharging,
 } from '../lib/tauri-commands'
 import {
@@ -43,6 +43,7 @@ import { openAppWindow } from '../lib/window'
 
 // Persistence keys
 const K_SETTINGS = 'settings'
+const K_PREVENTION = 'prevention'
 const K_WALLPAPER = 'wallpaper'
 const K_THEME = 'theme'
 const K_MARQUEE = 'marquee'
@@ -66,9 +67,6 @@ interface AppStore {
   smartScene: SmartSceneState
   // Settings
   settings: AppSettings
-  // UI state
-  trayPanelOpen: boolean
-  screensaverVisible: boolean
   // Internal flag
   _hydrated: boolean
 
@@ -117,19 +115,13 @@ interface AppStore {
   // Settings actions
   setAutoStart: (enabled: boolean) => Promise<void>
   setShortcut: (key: 'shortcutEnable' | 'shortcutDisable' | 'shortcutScreensaver', combo: string) => Promise<void>
-  setMinimizeToTray: (enabled: boolean) => void
   setExpiryWarning: (enabled: boolean) => void
   setExpiryWarningMinutes: (minutes: number) => void
-  setSoundEnabled: (enabled: boolean) => void
-  setLanguage: (language: 'zh-CN' | 'en-US') => void
   setPollIntervalSeconds: (seconds: number) => void
   setThemePreference: (preference: ThemePreference) => void
   setIdleScreensaverMinutes: (minutes: number) => void
   completeOnboarding: () => void
 
-  // UI actions
-  setTrayPanelOpen: (open: boolean) => void
-  setScreensaverVisible: (visible: boolean) => void
 }
 
 const defaultPrevention: PreventionState = {
@@ -194,15 +186,20 @@ const defaultSettings: AppSettings = {
   shortcutEnable: 'CommandOrControl+Shift+S',
   shortcutDisable: 'CommandOrControl+Shift+X',
   shortcutScreensaver: 'CommandOrControl+Shift+F',
-  minimizeToTray: true,
   expiryWarning: true,
   expiryWarningMinutes: 5,
-  soundEnabled: true,
-  language: 'zh-CN',
   pollIntervalSeconds: 10,
   themePreference: 'system',
   idleScreensaverMinutes: 0,
   onboardingCompleted: false,
+}
+
+function inactivePreventionState(current: PreventionState): PreventionState {
+  return {
+    ...defaultPrevention,
+    mode: current.mode,
+    duration: current.duration,
+  }
 }
 
 // Smart-scene polling timer
@@ -274,6 +271,7 @@ function ensureSmartSceneLoop() {
   const enabled = smartScene.autoOnCharge || smartScene.processNames.length > 0
   const interval = (settings.pollIntervalSeconds || 10) * 1000
   if (enabled && !smartSceneTimer) {
+    void pollSmartScene()
     smartSceneTimer = setInterval(pollSmartScene, interval)
   } else if (!enabled && smartSceneTimer) {
     clearInterval(smartSceneTimer)
@@ -318,14 +316,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   marquee: defaultMarquee,
   smartScene: defaultSmartScene,
   settings: defaultSettings,
-  trayPanelOpen: false,
-  screensaverVisible: false,
   _hydrated: false,
 
   initApp: async () => {
     // 1) Hydrate from persistent store
-    const [sSettings, sWall, sTheme, sMarq, sSmart] = await Promise.all([
+    const [sSettings, sPrevention, sWall, sTheme, sMarq, sSmart] = await Promise.all([
       persistGet<AppSettings>(K_SETTINGS),
+      persistGet<PreventionState>(K_PREVENTION),
       persistGet<WallpaperState>(K_WALLPAPER),
       persistGet<ThemeState>(K_THEME),
       persistGet<MarqueeState>(K_MARQUEE),
@@ -340,13 +337,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
       theme: sTheme ? { ...defaultTheme, ...sTheme } : defaultTheme,
       marquee: sMarq ? { ...defaultMarquee, ...sMarq } : defaultMarquee,
       smartScene: sSmart ? { ...defaultSmartScene, ...sSmart } : defaultSmartScene,
-      prevention: {
-        ...defaultPrevention,
-        mode: sSettings?.defaultMode ?? defaultPrevention.mode,
-        duration: (sSettings?.defaultDuration ?? defaultPrevention.duration) as DurationOption,
-      },
+      prevention: sPrevention
+        ? {
+            ...defaultPrevention,
+            ...sPrevention,
+            mode: sPrevention.mode ?? sSettings?.defaultMode ?? defaultPrevention.mode,
+            duration: (sPrevention.duration ?? sSettings?.defaultDuration ?? defaultPrevention.duration) as DurationOption,
+          }
+        : {
+            ...defaultPrevention,
+            mode: sSettings?.defaultMode ?? defaultPrevention.mode,
+            duration: (sSettings?.defaultDuration ?? defaultPrevention.duration) as DurationOption,
+          },
       _hydrated: true,
     })
+
+    try {
+      const runtime = await getPreventionStatus()
+      const currentPrevention = get().prevention
+      if (runtime.active) {
+        const next: PreventionState = {
+          ...currentPrevention,
+          active: true,
+          startTime: currentPrevention.startTime ?? Date.now(),
+          assertionId: runtime.assertionId ?? currentPrevention.assertionId,
+        }
+        set({ prevention: next })
+        await persistSet(K_PREVENTION, next)
+      } else if (currentPrevention.active || currentPrevention.startTime !== null || currentPrevention.assertionId !== null) {
+        const next = inactivePreventionState(currentPrevention)
+        set({ prevention: next })
+        await persistSet(K_PREVENTION, next)
+      }
+    } catch {}
 
     // 2) Sync autostart with the OS once (in case external change happened)
     try {
@@ -383,6 +406,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
           if (v) set({ settings: { ...defaultSettings, ...v } })
           break
         }
+        case K_PREVENTION: {
+          const v = await persistGet<PreventionState>(K_PREVENTION)
+          if (v) {
+            set({ prevention: { ...defaultPrevention, ...v } })
+          } else {
+            set({ prevention: inactivePreventionState(get().prevention) })
+          }
+          break
+        }
         case K_WALLPAPER: {
           const v = await persistGet<WallpaperState>(K_WALLPAPER)
           if (v) set({ wallpaper: { ...defaultWallpaper, ...v, builtIn: defaultWallpaper.builtIn } })
@@ -413,28 +445,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     //    When user clicks "允许休眠/防止休眠" in the tray context menu,
     //    Rust toggles the caffeinate process and emits this event.
     //    Frontend must sync its state accordingly.
-    await listen<boolean>('antisleep://prevention-toggled', (event) => {
-      const isActive = event.payload
+    await listen<{ active: boolean; assertionId?: number | null }>('antisleep://prevention-toggled', (event) => {
+      const isActive = event.payload?.active ?? false
       const { prevention } = get()
-      if (isActive && !prevention.active) {
-        // Rust started prevention — sync frontend state
-        set({
-          prevention: {
-            ...prevention,
-            active: true,
-            startTime: Date.now(),
-            assertionId: -1, // Unknown PID from Rust side; will be overwritten on next frontend toggle
-          },
-        })
-      } else if (!isActive && prevention.active) {
-        // Rust stopped prevention — sync frontend state
-        set({
-          prevention: {
-            ...defaultPrevention,
-            mode: prevention.mode,
-            duration: prevention.duration,
-          },
-        })
+      if (isActive) {
+        const next: PreventionState = {
+          ...prevention,
+          active: true,
+          startTime: prevention.startTime ?? Date.now(),
+          assertionId: event.payload?.assertionId ?? prevention.assertionId ?? null,
+        }
+        set({ prevention: next })
+        void persistSet(K_PREVENTION, next)
+      } else {
+        const next = inactivePreventionState(prevention)
+        set({ prevention: next })
+        void persistSet(K_PREVENTION, next)
       }
     })
   },
@@ -451,16 +477,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   startPreventionAction: async (mode, duration) => {
     try {
       const assertionId = await startPrevention(mode)
-      set({
-        prevention: {
-          ...get().prevention,
-          active: true,
-          mode,
-          duration,
-          startTime: Date.now(),
-          assertionId,
-        },
-      })
+      const next: PreventionState = {
+        ...get().prevention,
+        active: true,
+        mode,
+        duration,
+        startTime: Date.now(),
+        assertionId,
+      }
+      set({ prevention: next })
+      await sync(K_PREVENTION, next)
     } catch (e) {
       console.error('Failed to start prevention:', e)
     }
@@ -468,41 +494,36 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   stopPreventionAction: async () => {
     const { prevention } = get()
+    const next = inactivePreventionState(prevention)
     try {
       if (prevention.assertionId !== null) {
         await stopPrevention(prevention.assertionId)
       }
-      set({
-        prevention: {
-          ...defaultPrevention,
-          mode: prevention.mode,
-          duration: prevention.duration,
-        },
-      })
+      set({ prevention: next })
+      await sync(K_PREVENTION, next)
     } catch (e) {
       console.error('Failed to stop prevention:', e)
-      set({
-        prevention: {
-          ...defaultPrevention,
-          mode: prevention.mode,
-          duration: prevention.duration,
-        },
-      })
+      set({ prevention: next })
+      await sync(K_PREVENTION, next)
     }
   },
 
   setPreventionMode: (mode) => {
-    set({ prevention: { ...get().prevention, mode } })
+    const nextPrevention = { ...get().prevention, mode }
+    set({ prevention: nextPrevention })
     const s = { ...get().settings, defaultMode: mode }
     set({ settings: s })
     sync(K_SETTINGS, s)
+    sync(K_PREVENTION, nextPrevention)
   },
 
   setDuration: (duration) => {
-    set({ prevention: { ...get().prevention, duration } })
+    const nextPrevention = { ...get().prevention, duration }
+    set({ prevention: nextPrevention })
     const s = { ...get().settings, defaultDuration: duration }
     set({ settings: s })
     sync(K_SETTINGS, s)
+    sync(K_PREVENTION, nextPrevention)
   },
 
   // Wallpaper
@@ -593,11 +614,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Clear all persisted data
     await Promise.all([
       persistRemove(K_SETTINGS),
+      persistRemove(K_PREVENTION),
       persistRemove(K_WALLPAPER),
       persistRemove(K_THEME),
       persistRemove(K_MARQUEE),
       persistRemove(K_SMART),
     ])
+
+    await applyAutostart(defaultSettings.autoStart)
+
+    if (smartSceneTimer) {
+      clearInterval(smartSceneTimer)
+      smartSceneTimer = null
+    }
+
     // Reset state to defaults
     set({
       settings: defaultSettings,
@@ -607,6 +637,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       smartScene: defaultSmartScene,
       prevention: defaultPrevention,
     })
+
+    applyThemePreference(defaultSettings.themePreference)
+    ensureSmartSceneLoop()
+    await registerAllShortcuts()
   },
 
   // Marquee
@@ -693,24 +727,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await sync(K_SETTINGS, next)
     await registerAllShortcuts()
   },
-  setMinimizeToTray: (enabled) => {
-    const next = { ...get().settings, minimizeToTray: enabled }
-    set({ settings: next }); sync(K_SETTINGS, next)
-  },
   setExpiryWarning: (enabled) => {
     const next = { ...get().settings, expiryWarning: enabled }
     set({ settings: next }); sync(K_SETTINGS, next)
   },
   setExpiryWarningMinutes: (minutes) => {
     const next = { ...get().settings, expiryWarningMinutes: minutes }
-    set({ settings: next }); sync(K_SETTINGS, next)
-  },
-  setSoundEnabled: (enabled) => {
-    const next = { ...get().settings, soundEnabled: enabled }
-    set({ settings: next }); sync(K_SETTINGS, next)
-  },
-  setLanguage: (language) => {
-    const next = { ...get().settings, language }
     set({ settings: next }); sync(K_SETTINGS, next)
   },
   setPollIntervalSeconds: (seconds) => {
@@ -737,8 +759,4 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = { ...get().settings, onboardingCompleted: true }
     set({ settings: next }); sync(K_SETTINGS, next)
   },
-
-  // UI
-  setTrayPanelOpen: (open) => set({ trayPanelOpen: open }),
-  setScreensaverVisible: (visible) => set({ screensaverVisible: visible }),
 }))

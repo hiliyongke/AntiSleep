@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { useAppStore } from '../../stores/appStore'
-import { openAppWindow } from '../../lib/window'
 import { ChevronRight, Coffee, Monitor, Palette, Zap } from 'lucide-react'
 
 const STEPS = [
@@ -35,8 +33,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   const handleFinish = () => {
     onComplete?.()
-    // Open settings for first customization
-    openAppWindow('settings').catch(() => {})
   }
 
   const current = STEPS[step]

@@ -11,6 +11,13 @@ interface Floater {
   speed: number
 }
 
+interface HaloArc {
+  radius: number
+  width: number
+  speed: number
+  phase: number
+}
+
 export class BreathingLightRenderer implements ThemeRenderer {
   readonly id = 'breathing-light' as const
   readonly name = '呼吸灯'
@@ -23,6 +30,7 @@ export class BreathingLightRenderer implements ThemeRenderer {
   private config: ThemeConfig | null = null
   private time = 0
   private floaters: Floater[] = []
+  private arcs: HaloArc[] = []
 
   init(canvas: HTMLCanvasElement, config: ThemeConfig): void {
     this.canvas = canvas
@@ -40,6 +48,13 @@ export class BreathingLightRenderer implements ThemeRenderer {
       size: 0.003 + Math.random() * 0.008,
       phase: Math.random() * Math.PI * 2,
       speed: 0.8 + Math.random() * 1.5,
+    }))
+
+    this.arcs = Array.from({ length: 4 }, (_, i) => ({
+      radius: 0.16 + i * 0.08,
+      width: 0.012 + i * 0.003,
+      speed: 0.5 + i * 0.12,
+      phase: Math.random() * Math.PI * 2,
     }))
   }
 
@@ -131,6 +146,17 @@ export class BreathingLightRenderer implements ThemeRenderer {
       ctx.stroke()
     }
 
+    for (const arc of this.arcs) {
+      const start = this.time * arc.speed + arc.phase
+      const end = start + Math.PI * (0.7 + 0.2 * Math.sin(this.time + arc.phase))
+      ctx.beginPath()
+      ctx.arc(cx, cy, minDim * arc.radius, start, end)
+      ctx.strokeStyle = color + this.alphaHex(0.14)
+      ctx.lineWidth = minDim * arc.width
+      ctx.lineCap = 'round'
+      ctx.stroke()
+    }
+
     // --- Floating ambient particles ---
     const density = this.config.density === 'low' ? 12 : this.config.density === 'high' ? 36 : 24
     for (let i = 0; i < Math.min(this.floaters.length, density); i++) {
@@ -213,6 +239,7 @@ export class BreathingLightRenderer implements ThemeRenderer {
 
   destroy(): void {
     this.floaters = []
+    this.arcs = []
     this.ctx = null
     this.canvas = null
   }

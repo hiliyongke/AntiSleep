@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { closeCurrentAppWindow } from '../lib/window'
 
 /**
  * Hook for managing screensaver window visibility and floating controls.
@@ -44,7 +45,9 @@ export function useScreensaver() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        window.close()
+        closeCurrentAppWindow().catch(() => {
+          window.close()
+        })
       }
     }
     window.addEventListener('keydown', handleKeyDown)

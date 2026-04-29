@@ -1,3 +1,4 @@
+use serde::Serialize;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -9,6 +10,13 @@ use tauri::{
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("tray-icon.png");
 
 const EVENT_PREVENTION_TOGGLED: &str = "antisleep://prevention-toggled";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreventionToggledPayload {
+    active: bool,
+    assertion_id: Option<u32>,
+}
 
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let toggle = MenuItemBuilder::with_id("toggle", "防止休眠").build(app)?;
@@ -36,16 +44,17 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "toggle" => {
-                    let now_active = if crate::sleep_prevention::is_active() {
+                    let assertion_id = if crate::sleep_prevention::is_active() {
                         let _ = crate::sleep_prevention::stop_all();
-                        false
+                        None
                     } else {
-                        let result = crate::sleep_prevention::start(
+                        crate::sleep_prevention::start(
                             crate::sleep_prevention::PreventionMode::System,
                             None,
-                        );
-                        result.is_ok()
+                        )
+                        .ok()
                     };
+                    let now_active = assertion_id.is_some();
 
                     // Update menu text to reflect new state
                     if let Some(item) = app.menu().and_then(|m| m.get("toggle")) {
@@ -54,7 +63,13 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     // Notify all frontend windows to sync state
-                    let _ = app.emit(EVENT_PREVENTION_TOGGLED, now_active);
+                    let _ = app.emit(
+                        EVENT_PREVENTION_TOGGLED,
+                        PreventionToggledPayload {
+                            active: now_active,
+                            assertion_id,
+                        },
+                    );
                 }
                 "screensaver" => {
                     open_screensaver_window(app);

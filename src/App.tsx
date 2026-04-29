@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppStore } from './stores/appStore'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -6,7 +6,9 @@ import { TrayPanel } from './components/tray/TrayPanel'
 import { ScreensaverWindow } from './components/screensaver/ScreensaverWindow'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { useIdleScreensaver } from './hooks/useIdleScreensaver'
+import { useSleepPrevention } from './hooks/useSleepPrevention'
 import { Onboarding } from './components/onboarding/Onboarding'
+import { openAppWindow } from './lib/window'
 
 /**
  * Resolve current window label following Tauri v2 best practice.
@@ -49,16 +51,31 @@ function useWindowLabel(): string {
 function App() {
   const initApp = useAppStore((s) => s.initApp)
   const settings = useAppStore((s) => s.settings)
+  const hydrated = useAppStore((s) => s._hydrated)
   const completeOnboarding = useAppStore((s) => s.completeOnboarding)
+  const onboardingOpenedRef = useRef(false)
 
   useEffect(() => {
     initApp()
   }, [initApp])
 
-  // Auto-launch screensaver on idle
-  useIdleScreensaver()
-
   const windowLabel = useWindowLabel()
+
+  useSleepPrevention({ manageLifecycle: windowLabel === 'main' })
+
+  // Auto-launch screensaver on idle from the hidden main window only.
+  useIdleScreensaver(windowLabel === 'main')
+
+  useEffect(() => {
+    if (windowLabel !== 'main' || !hydrated || settings.onboardingCompleted || onboardingOpenedRef.current) {
+      return
+    }
+
+    onboardingOpenedRef.current = true
+    openAppWindow('settings').catch(() => {
+      onboardingOpenedRef.current = false
+    })
+  }, [hydrated, settings.onboardingCompleted, windowLabel])
 
   if (windowLabel === 'tray-panel') {
     return (
@@ -79,21 +96,13 @@ function App() {
   if (windowLabel === 'settings') {
     return (
       <ErrorBoundary>
-        <SettingsPanel />
-      </ErrorBoundary>
-    )
-  }
-
-  // Main window (hidden, just for tray management)
-  // Show onboarding for first-time users
-
-  if (!settings.onboardingCompleted && settings.autoStart === false && !settings.minimizeToTray) {
-    // Likely first launch — show onboarding
-    return (
-      <ErrorBoundary>
-        <div className="w-screen h-screen" style={{ backgroundColor: 'var(--bg-mica)' }}>
-          <Onboarding onComplete={completeOnboarding} />
-        </div>
+        {settings.onboardingCompleted ? (
+          <SettingsPanel />
+        ) : (
+          <div className="w-screen h-screen" style={{ backgroundColor: 'var(--bg-mica)' }}>
+            <Onboarding onComplete={completeOnboarding} />
+          </div>
+        )}
       </ErrorBoundary>
     )
   }

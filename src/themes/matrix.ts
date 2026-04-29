@@ -22,6 +22,14 @@ interface GlitchBlock {
   timer: number
 }
 
+interface DataBurst {
+  x: number
+  y: number
+  radius: number
+  life: number
+  maxLife: number
+}
+
 const CHAR_SETS = {
   latin: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
   katakana: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン',
@@ -49,6 +57,7 @@ export class MatrixRenderer implements ThemeRenderer {
   private time = 0
   private charPool = ''
   private scanlineOffset = 0
+  private bursts: DataBurst[] = []
 
   init(canvas: HTMLCanvasElement, config: ThemeConfig): void {
     this.canvas = canvas
@@ -94,9 +103,35 @@ export class MatrixRenderer implements ThemeRenderer {
     const color = this.config.customColor || this.defaultColor
     const rgb = this.hexToRgb(color)
 
+    if (Math.random() < 0.008 * speed) {
+      this.bursts.push({
+        x: Math.random() * this.canvas.width,
+        y: Math.random() * this.canvas.height,
+        radius: 0,
+        life: 1,
+        maxLife: 0.8 + Math.random() * 0.8,
+      })
+    }
+
     // Deep fade trail
     ctx.fillStyle = `rgba(0, 3, 0, ${0.04 + speed * 0.02})`
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+
+    for (let i = this.bursts.length - 1; i >= 0; i--) {
+      const burst = this.bursts[i]
+      burst.radius += deltaTime * speed * 120
+      burst.life -= deltaTime / burst.maxLife
+      if (burst.life <= 0) {
+        this.bursts.splice(i, 1)
+        continue
+      }
+
+      ctx.beginPath()
+      ctx.arc(burst.x, burst.y, burst.radius, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${burst.life * 0.2})`
+      ctx.lineWidth = 1
+      ctx.stroke()
+    }
 
     ctx.font = `${this.fontSize}px "SF Mono", "Fira Code", "Cascadia Code", monospace`
     ctx.textBaseline = 'top'
@@ -156,6 +191,13 @@ export class MatrixRenderer implements ThemeRenderer {
 
       col.y += col.speed * speed * deltaTime * 40
       col.charIndex++
+
+      for (const burst of this.bursts) {
+        const dist = Math.abs(col.x - burst.x)
+        if (dist < this.fontSize * 2 && Math.abs(col.y - burst.y) < burst.radius) {
+          col.glitchOffset += Math.sin(this.time * 30 + dist) * burst.life * 2
+        }
+      }
 
       if (col.y > this.canvas.height + col.length * this.fontSize) {
         this.columns[c] = this.createColumn()
@@ -229,6 +271,7 @@ export class MatrixRenderer implements ThemeRenderer {
   destroy(): void {
     this.columns = []
     this.glitchBlocks = []
+    this.bursts = []
     this.ctx = null
     this.canvas = null
   }

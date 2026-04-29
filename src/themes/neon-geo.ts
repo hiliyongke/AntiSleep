@@ -20,6 +20,12 @@ interface Link {
   strength: number
 }
 
+interface ScanBeam {
+  offset: number
+  speed: number
+  alpha: number
+}
+
 export class NeonGeoRenderer implements ThemeRenderer {
   readonly id = 'neon-geo' as const
   readonly name = '霓虹几何'
@@ -33,6 +39,7 @@ export class NeonGeoRenderer implements ThemeRenderer {
   private time = 0
   private nodes: Node[] = []
   private links: Link[] = []
+  private beams: ScanBeam[] = []
   private mouseX = -1000
   private mouseY = -1000
 
@@ -41,6 +48,11 @@ export class NeonGeoRenderer implements ThemeRenderer {
     this.ctx = canvas.getContext('2d')
     this.config = config
     this.resetNodes()
+    this.beams = Array.from({ length: 3 }, (_, i) => ({
+      offset: i * 0.33,
+      speed: 0.08 + i * 0.03,
+      alpha: 0.05 + i * 0.02,
+    }))
     canvas.addEventListener('mousemove', this.handleMouseMove)
     canvas.addEventListener('mouseleave', this.handleMouseLeave)
   }
@@ -163,6 +175,16 @@ export class NeonGeoRenderer implements ThemeRenderer {
     // Clear with very slight fade for motion blur feel
     ctx.fillStyle = 'rgba(6, 6, 14, 0.35)'
     ctx.fillRect(0, 0, w, h)
+
+    for (const beam of this.beams) {
+      const x = ((this.time * beam.speed + beam.offset) % 1.2) * w - w * 0.1
+      const grad = ctx.createLinearGradient(x - 40, 0, x + 40, 0)
+      grad.addColorStop(0, 'transparent')
+      grad.addColorStop(0.5, (this.config.customColor || this.defaultColor) + this.alphaHex(beam.alpha))
+      grad.addColorStop(1, 'transparent')
+      ctx.fillStyle = grad
+      ctx.fillRect(x - 40, 0, 80, h)
+    }
 
     // Update node positions
     for (const n of this.nodes) {
@@ -325,6 +347,7 @@ export class NeonGeoRenderer implements ThemeRenderer {
     }
     this.nodes = []
     this.links = []
+    this.beams = []
     this.ctx = null
     this.canvas = null
   }

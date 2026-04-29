@@ -9,11 +9,8 @@ export function GeneralSettings() {
   const settings = useAppStore((s) => s.settings)
   const prevention = useAppStore((s) => s.prevention)
   const setAutoStart = useAppStore((s) => s.setAutoStart)
-  const setMinimizeToTray = useAppStore((s) => s.setMinimizeToTray)
   const setExpiryWarning = useAppStore((s) => s.setExpiryWarning)
   const setExpiryWarningMinutes = useAppStore((s) => s.setExpiryWarningMinutes)
-  const setSoundEnabled = useAppStore((s) => s.setSoundEnabled)
-  const setLanguage = useAppStore((s) => s.setLanguage)
   const setThemePreference = useAppStore((s) => s.setThemePreference)
   const setIdleScreensaverMinutes = useAppStore((s) => s.setIdleScreensaverMinutes)
 
@@ -53,20 +50,6 @@ export function GeneralSettings() {
           onChange={() => setAutoStart(!settings.autoStart)}
         />
       </div>
-
-      {/* Minimize to tray */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm" style={{ color: 'var(--text-primary)' }}>关闭时最小化到托盘</p>
-          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>点击关闭按钮时保持后台运行，而非退出应用</p>
-        </div>
-        <ToggleSwitch
-          checked={settings.minimizeToTray}
-          onChange={() => setMinimizeToTray(!settings.minimizeToTray)}
-        />
-      </div>
-
-      <div className="fluent-divider" />
 
       {/* Default mode */}
       <div className="space-y-2">
@@ -166,37 +149,6 @@ export function GeneralSettings() {
             <span>关闭</span>
             <span>60分钟</span>
           </div>
-        </div>
-      </div>
-
-      <div className="fluent-divider" />
-
-      {/* Sound & Language */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>提醒音效</p>
-            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>状态变化时播放提示音</p>
-          </div>
-          <ToggleSwitch
-            checked={settings.soundEnabled}
-            onChange={() => setSoundEnabled(!settings.soundEnabled)}
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>界面语言</p>
-            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>选择应用显示语言</p>
-          </div>
-          <select
-            value={settings.language}
-            onChange={(e) => setLanguage(e.target.value as 'zh-CN' | 'en-US')}
-            className="fluent-input w-28 text-xs"
-          >
-            <option value="zh-CN">简体中文</option>
-            <option value="en-US">English</option>
-          </select>
         </div>
       </div>
 

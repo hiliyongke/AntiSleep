@@ -14,6 +14,7 @@ export class WaveFluidRenderer implements ThemeRenderer {
   private time = 0
   private waves: { amplitude: number; frequency: number; speed: number; phase: number; yOffset: number }[] = []
   private ripples: { x: number; y: number; radius: number; maxRadius: number; alpha: number; speed: number }[] = []
+  private foamBursts: { x: number; y: number; vx: number; vy: number; life: number; size: number }[] = []
   private mouseX = -1
   private mouseY = -1
   private prevMouseX = -1
@@ -44,6 +45,17 @@ export class WaveFluidRenderer implements ThemeRenderer {
         alpha: 0.4 + Math.random() * 0.3,
         speed: 40 + Math.random() * 30,
       })
+
+      for (let i = 0; i < 2; i++) {
+        this.foamBursts.push({
+          x: this.mouseX,
+          y: this.mouseY,
+          vx: (Math.random() - 0.5) * 14,
+          vy: -8 - Math.random() * 8,
+          life: 0.6 + Math.random() * 0.4,
+          size: 1 + Math.random() * 2.4,
+        })
+      }
     }
   }
 
@@ -82,6 +94,18 @@ export class WaveFluidRenderer implements ThemeRenderer {
 
     const w = this.canvas.width
     const h = this.canvas.height
+
+    const causticSpacing = this.config?.density === 'low' ? 90 : this.config?.density === 'high' ? 45 : 65
+    ctx.strokeStyle = color + '16'
+    for (let y = -40; y < h + 40; y += causticSpacing) {
+      ctx.beginPath()
+      for (let x = 0; x <= w; x += 10) {
+        const lineY = y + Math.sin(x * 0.014 + this.time * 1.8 + y * 0.01) * 7
+        if (x === 0) ctx.moveTo(x, lineY)
+        else ctx.lineTo(x, lineY)
+      }
+      ctx.stroke()
+    }
 
     // Draw waves from back to front
     for (let wi = 0; wi < this.waves.length; wi++) {
@@ -146,6 +170,24 @@ export class WaveFluidRenderer implements ThemeRenderer {
       }
     }
 
+    for (let i = this.foamBursts.length - 1; i >= 0; i--) {
+      const foam = this.foamBursts[i]
+      foam.x += foam.vx * deltaTime * speed
+      foam.y += foam.vy * deltaTime * speed
+      foam.vy += 16 * deltaTime * speed
+      foam.life -= deltaTime * 0.9
+
+      if (foam.life <= 0) {
+        this.foamBursts.splice(i, 1)
+        continue
+      }
+
+      ctx.beginPath()
+      ctx.arc(foam.x, foam.y, foam.size, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(255,255,255,${foam.life * 0.55})`
+      ctx.fill()
+    }
+
     // Sparkle particles on wave crests
     const sparkleCount = this.config?.density === 'low' ? 15 : this.config?.density === 'high' ? 50 : 30
     for (let i = 0; i < sparkleCount; i++) {
@@ -175,6 +217,7 @@ export class WaveFluidRenderer implements ThemeRenderer {
     }
     this.waves = []
     this.ripples = []
+    this.foamBursts = []
     this.ctx = null
     this.canvas = null
   }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useAppStore } from '../stores/appStore'
 import { openAppWindow } from '../lib/window'
 
@@ -9,10 +10,10 @@ import { openAppWindow } from '../lib/window'
  * Idle detection: tracks last mouse/keyboard activity timestamp.
  * Polls every 10s to check if idle threshold exceeded.
  */
-export function useIdleScreensaver() {
+export function useIdleScreensaver(enabled: boolean) {
   const idleScreensaverMinutes = useAppStore((s) => s.settings.idleScreensaverMinutes)
-  const screensaverVisible = useAppStore((s) => s.screensaverVisible)
   const lastActivityRef = useRef(Date.now())
+  const screensaverOpenRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Update last activity on any user input
@@ -31,17 +32,46 @@ export function useIdleScreensaver() {
     }
   }, [])
 
+  useEffect(() => {
+    let unlistenOpened: UnlistenFn | null = null
+    let unlistenClosed: UnlistenFn | null = null
+
+    Promise.all([
+      listen('antisleep://screensaver-opened', () => {
+        screensaverOpenRef.current = true
+      }),
+      listen('antisleep://screensaver-closed', () => {
+        screensaverOpenRef.current = false
+        lastActivityRef.current = Date.now()
+      }),
+    ])
+      .then(([opened, closed]) => {
+        unlistenOpened = opened
+        unlistenClosed = closed
+      })
+      .catch(() => {})
+
+    return () => {
+      unlistenOpened?.()
+      unlistenClosed?.()
+    }
+  }, [])
+
   // Poll idle time and auto-launch screensaver
   useEffect(() => {
-    if (!idleScreensaverMinutes || idleScreensaverMinutes <= 0) return
-    if (screensaverVisible) return
+    if (!enabled || !idleScreensaverMinutes || idleScreensaverMinutes <= 0) return
 
     const checkIdle = () => {
-      if (useAppStore.getState().screensaverVisible) return
+      if (screensaverOpenRef.current) return
+
       const idleMs = Date.now() - lastActivityRef.current
       const thresholdMs = idleScreensaverMinutes * 60 * 1000
       if (idleMs >= thresholdMs) {
-        openAppWindow('screensaver').catch(() => {})
+        screensaverOpenRef.current = true
+        lastActivityRef.current = Date.now()
+        openAppWindow('screensaver').catch(() => {
+          screensaverOpenRef.current = false
+        })
       }
     }
 
@@ -49,5 +79,5 @@ export function useIdleScreensaver() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [idleScreensaverMinutes, screensaverVisible])
+  }, [enabled, idleScreensaverMinutes])
 }

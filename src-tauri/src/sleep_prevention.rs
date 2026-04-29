@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use std::sync::Mutex;
-use std::time::Instant;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -14,19 +13,25 @@ static PREVENTION_STATE: Mutex<Option<ActivePrevention>> = Mutex::new(None);
 
 struct ActivePrevention {
     assertion_id: u32,
-    duration_minutes: Option<u64>, // None = infinite
-    started_at: Instant,
 }
 
 /// Start sleep prevention — dispatches to platform-specific implementation
 pub fn start(mode: PreventionMode, duration_minutes: Option<u64>) -> Result<u32, String> {
+    let _ = duration_minutes;
+    let existing = {
+        let mut state = PREVENTION_STATE.lock().map_err(|e| e.to_string())?;
+        state.take().map(|active| active.assertion_id)
+    };
+
+    if let Some(assertion_id) = existing {
+        let _ = stop_platform(assertion_id);
+    }
+
     let assertion_id = start_platform(&mode)?;
 
     let mut state = PREVENTION_STATE.lock().map_err(|e| e.to_string())?;
     *state = Some(ActivePrevention {
         assertion_id,
-        duration_minutes,
-        started_at: Instant::now(),
     });
 
     Ok(assertion_id)
@@ -34,10 +39,15 @@ pub fn start(mode: PreventionMode, duration_minutes: Option<u64>) -> Result<u32,
 
 /// Stop sleep prevention by assertion ID
 pub fn stop(assertion_id: u32) -> Result<(), String> {
-    stop_platform(assertion_id)?;
+    let _ = assertion_id;
+    let active = {
+        let mut state = PREVENTION_STATE.lock().map_err(|e| e.to_string())?;
+        state.take()
+    };
 
-    let mut state = PREVENTION_STATE.lock().map_err(|e| e.to_string())?;
-    *state = None;
+    if let Some(active) = active {
+        stop_platform(active.assertion_id)?;
+    }
 
     Ok(())
 }
@@ -51,31 +61,19 @@ pub fn stop_all() -> Result<(), String> {
     Ok(())
 }
 
-/// Get remaining time in seconds (None = infinite)
-pub fn get_remaining_seconds() -> Result<Option<u64>, String> {
-    let state = PREVENTION_STATE.lock().map_err(|e| e.to_string())?;
-    match &*state {
-        None => Ok(None),
-        Some(active) => {
-            let elapsed = active.started_at.elapsed().as_secs();
-            match active.duration_minutes {
-                None => Ok(None), // infinite
-                Some(minutes) => {
-                    let total_secs = minutes * 60;
-                    let remaining = total_secs.saturating_sub(elapsed);
-                    Ok(Some(remaining))
-                }
-            }
-        }
-    }
-}
-
 /// Check if prevention is currently active
 pub fn is_active() -> bool {
     PREVENTION_STATE
         .lock()
         .map(|s| s.is_some())
         .unwrap_or(false)
+}
+
+pub fn active_assertion_id() -> Option<u32> {
+    PREVENTION_STATE
+        .lock()
+        .ok()
+        .and_then(|state| state.as_ref().map(|active| active.assertion_id))
 }
 
 // Platform-specific dispatch
