@@ -33,8 +33,15 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&quit)
         .build()?;
 
-    let tray_icon = tauri::image::Image::from_bytes(TRAY_ICON_BYTES)
-        .expect("Failed to load tray icon");
+    // Try to load tray icon, fallback to system default if fails
+    let tray_icon = match tauri::image::Image::from_bytes(TRAY_ICON_BYTES) {
+        Ok(icon) => icon,
+        Err(e) => {
+            eprintln!("Warning: Failed to load tray icon: {}", e);
+            // Continue without custom icon - Tauri will use default
+            return Ok(());
+        }
+    };
 
     let _tray = TrayIconBuilder::new()
         .icon(tray_icon)
@@ -122,14 +129,43 @@ fn open_tray_panel(app: &tauri::AppHandle) {
 }
 
 fn open_screensaver_window(app: &tauri::AppHandle) {
+    let delegated = if let Some(main_window) = app.get_webview_window("main") {
+        main_window
+            .eval("window.__openScreensaver?.().catch(() => {})")
+            .is_ok()
+    } else {
+        false
+    };
+
+    if delegated {
+        return;
+    }
+
+    let mut has_screensaver = false;
+
+    for i in 0..16 {
+        if let Some(window) = app.get_webview_window(&format!("screensaver-{}", i)) {
+            let _ = window.show();
+            if !has_screensaver {
+                let _ = window.set_focus();
+            }
+            has_screensaver = true;
+        }
+    }
+
     if let Some(window) = app.get_webview_window("screensaver") {
         let _ = window.show();
-        let _ = window.set_focus();
-    } else {
+        if !has_screensaver {
+            let _ = window.set_focus();
+        }
+        has_screensaver = true;
+    }
+
+    if !has_screensaver {
         let _ = tauri::WebviewWindowBuilder::new(
             app,
             "screensaver",
-            tauri::WebviewUrl::App("index.html".into()),
+            tauri::WebviewUrl::App("index.html?label=screensaver".into()),
         )
         .title("AntiSleep Screensaver")
         .decorations(false)

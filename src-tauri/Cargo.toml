@@ -1,6 +1,6 @@
 [package]
 name = "antisleep"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "AntiSleep - Cross-platform screen lock prevention tool"
 
@@ -19,10 +19,12 @@ tauri-plugin-autostart = "2.5.1"
 tauri-plugin-global-shortcut = "2.3.1"
 sysinfo = "0.38.4"
 battery = "0.7.8"
+tokio = { version = "1", features = ["sync", "time", "rt-multi-thread"] }
 
 # macOS specific
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSWindow"] }
 
 # Windows specific
 [target.'cfg(target_os = "windows")'.dependencies]

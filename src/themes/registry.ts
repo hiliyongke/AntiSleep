@@ -3,7 +3,6 @@ import type { ThemeRenderer } from './types'
 import { MatrixRenderer } from './matrix'
 import { ParticleNetworkRenderer } from './particle-network'
 import { StarfieldRenderer } from './starfield'
-import { AuroraRenderer } from './aurora'
 import { BreathingLightRenderer } from './breathing-light'
 import { ClockRenderer } from './clock'
 import { FirefliesRenderer } from './fireflies'
@@ -23,7 +22,6 @@ const themeMetaList: ThemeMeta[] = [
   { id: 'matrix', name: '矩阵代码雨', category: 'tech', thumbnail: '', defaultColor: '#16C60C' },
   { id: 'particle-network', name: '粒子网络', category: 'tech', thumbnail: '', defaultColor: '#0078D4' },
   { id: 'starfield', name: '星空', category: 'nature', thumbnail: '', defaultColor: '#FFFFFF' },
-  { id: 'aurora', name: '极光', category: 'nature', thumbnail: '', defaultColor: '#16C60C' },
   { id: 'breathing-light', name: '呼吸灯', category: 'minimal', thumbnail: '', defaultColor: '#D83B01' },
   { id: 'clock', name: '时钟', category: 'minimal', thumbnail: '', defaultColor: '#FFFFFF' },
   { id: 'fireflies', name: '萤火之森', category: 'nature', thumbnail: '', defaultColor: '#FFD700' },
@@ -36,7 +34,6 @@ function createRenderer(id: ThemeId): ThemeRenderer | null {
     case 'matrix': return new MatrixRenderer()
     case 'particle-network': return new ParticleNetworkRenderer()
     case 'starfield': return new StarfieldRenderer()
-    case 'aurora': return new AuroraRenderer()
     case 'breathing-light': return new BreathingLightRenderer()
     case 'clock': return new ClockRenderer()
     case 'fireflies': return new FirefliesRenderer()

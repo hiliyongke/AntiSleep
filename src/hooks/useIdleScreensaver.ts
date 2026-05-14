@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useAppStore } from '../stores/appStore'
-import { openAppWindow } from '../lib/window'
+import { openScreensaver } from '../lib/window'
 
 /**
  * Monitors user idle time and auto-launches the screensaver
@@ -13,6 +13,7 @@ import { openAppWindow } from '../lib/window'
 export function useIdleScreensaver(enabled: boolean) {
   const idleScreensaverMinutes = useAppStore((s) => s.settings.idleScreensaverMinutes)
   const lastActivityRef = useRef(Date.now())
+  const openWindowLabelsRef = useRef(new Set<string>())
   const screensaverOpenRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -37,12 +38,18 @@ export function useIdleScreensaver(enabled: boolean) {
     let unlistenClosed: UnlistenFn | null = null
 
     Promise.all([
-      listen('antisleep://screensaver-opened', () => {
-        screensaverOpenRef.current = true
+      listen<{ label?: string }>('antisleep://screensaver-opened', (event) => {
+        const label = event.payload?.label ?? 'screensaver'
+        openWindowLabelsRef.current.add(label)
+        screensaverOpenRef.current = openWindowLabelsRef.current.size > 0
       }),
-      listen('antisleep://screensaver-closed', () => {
-        screensaverOpenRef.current = false
-        lastActivityRef.current = Date.now()
+      listen<{ label?: string }>('antisleep://screensaver-closed', (event) => {
+        const label = event.payload?.label ?? 'screensaver'
+        openWindowLabelsRef.current.delete(label)
+        screensaverOpenRef.current = openWindowLabelsRef.current.size > 0
+        if (!screensaverOpenRef.current) {
+          lastActivityRef.current = Date.now()
+        }
       }),
     ])
       .then(([opened, closed]) => {
@@ -69,8 +76,9 @@ export function useIdleScreensaver(enabled: boolean) {
       if (idleMs >= thresholdMs) {
         screensaverOpenRef.current = true
         lastActivityRef.current = Date.now()
-        openAppWindow('screensaver').catch(() => {
+        openScreensaver().catch(() => {
           screensaverOpenRef.current = false
+          openWindowLabelsRef.current.clear()
         })
       }
     }

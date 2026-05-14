@@ -2,6 +2,15 @@ use crate::sleep_prevention;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use sysinfo::System;
+use tauri::{AppHandle, Manager};
+
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{
+    NSNormalWindowLevel,
+    NSScreenSaverWindowLevel,
+    NSWindow,
+    NSWindowCollectionBehavior,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -73,8 +82,11 @@ pub async fn list_processes() -> Result<Vec<String>, String> {
             .next()
             .unwrap_or(&raw)
             .to_string();
-        let stem = base.rsplit_once('.').map(|(s, _)| s.to_string()).unwrap_or(base);
-        names.insert(stem);
+        let stem = base.rsplit_once('.').map(|(s, _)| s.to_string()).unwrap_or_else(|| base.clone());
+        
+        // Also add the full base name (with extension) as an option
+        names.insert(stem.clone());
+        names.insert(base);
     }
     let mut list: Vec<String> = names.into_iter().collect();
     list.sort();
@@ -143,4 +155,122 @@ pub async fn is_charging() -> Result<bool, String> {
     }
     // No battery detected → treat as desktop / always-on-power
     Ok(true)
+}
+
+#[tauri::command]
+pub async fn prepare_screensaver_window(app: AppHandle, label: String) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(&label) else {
+        return Ok(());
+    };
+
+    #[cfg(target_os = "macos")]
+    {
+        let ns_window = window.ns_window().map_err(|e| e.to_string())? as usize;
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        app.run_on_main_thread(move || {
+            let result = configure_macos_screensaver_window(ns_window);
+            let _ = tx.send(result);
+        })
+        .map_err(|e| e.to_string())?;
+
+        rx.recv().map_err(|e| e.to_string())??;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_screensaver_windows(app: AppHandle) -> Result<(), String> {
+    let windows: Vec<_> = app
+        .webview_windows()
+        .into_iter()
+        .filter(|(label, _)| is_screensaver_label(label))
+        .map(|(_, window)| window)
+        .collect();
+
+    #[cfg(target_os = "macos")]
+    {
+        let ns_windows: Vec<usize> = windows
+            .iter()
+            .filter_map(|window| window.ns_window().ok().map(|ptr| ptr as usize))
+            .collect();
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        app.run_on_main_thread(move || {
+            for ns_window in ns_windows {
+                let _ = restore_macos_screensaver_window(ns_window);
+            }
+            let _ = tx.send(());
+        })
+        .map_err(|e| e.to_string())?;
+
+        rx.recv().map_err(|e| e.to_string())?;
+    }
+
+    for window in windows {
+        let _ = window.destroy().or_else(|_| window.close());
+    }
+
+    Ok(())
+}
+
+fn is_screensaver_label(label: &str) -> bool {
+    label == "screensaver" || label.starts_with("screensaver-")
+}
+
+#[cfg(target_os = "macos")]
+fn configure_macos_screensaver_window(ns_window: usize) -> Result<(), String> {
+    if ns_window == 0 {
+        return Err("NSWindow pointer is null".to_string());
+    }
+
+    unsafe {
+        let ns_window = &*(ns_window as *mut NSWindow);
+        let mut behavior = ns_window.collectionBehavior();
+        behavior |= NSWindowCollectionBehavior::CanJoinAllSpaces;
+        behavior |= NSWindowCollectionBehavior::FullScreenAuxiliary;
+        behavior |= NSWindowCollectionBehavior::Stationary;
+        behavior |= NSWindowCollectionBehavior::IgnoresCycle;
+        behavior &= !NSWindowCollectionBehavior::FullScreenPrimary;
+        behavior &= !NSWindowCollectionBehavior::FullScreenNone;
+
+        ns_window.setCollectionBehavior(behavior);
+        ns_window.setLevel(NSScreenSaverWindowLevel);
+        ns_window.setHidesOnDeactivate(false);
+        ns_window.setCanHide(false);
+        ns_window.orderFrontRegardless();
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn restore_macos_screensaver_window(ns_window: usize) -> Result<(), String> {
+    if ns_window == 0 {
+        return Ok(());
+    }
+
+    unsafe {
+        let ns_window = &*(ns_window as *mut NSWindow);
+        let mut behavior = ns_window.collectionBehavior();
+        behavior &= !NSWindowCollectionBehavior::CanJoinAllSpaces;
+        behavior &= !NSWindowCollectionBehavior::FullScreenAuxiliary;
+        behavior &= !NSWindowCollectionBehavior::Stationary;
+        behavior &= !NSWindowCollectionBehavior::IgnoresCycle;
+        behavior &= !NSWindowCollectionBehavior::FullScreenPrimary;
+        behavior &= !NSWindowCollectionBehavior::FullScreenNone;
+
+        ns_window.setCollectionBehavior(behavior);
+        ns_window.setLevel(NSNormalWindowLevel);
+        ns_window.setCanHide(true);
+        ns_window.setHidesOnDeactivate(false);
+    }
+
+    Ok(())
 }

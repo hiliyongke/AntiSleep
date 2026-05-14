@@ -1,6 +1,10 @@
 import type { ThemeRenderer } from './types'
 import type { ThemeConfig } from '../types'
 
+// Performance constants
+const MAX_RIPPLES = 15;
+const MAX_FOAM_BURSTS = 20;
+
 export class WaveFluidRenderer implements ThemeRenderer {
   readonly id = 'wave-fluid' as const
   readonly name = '流体波纹'
@@ -37,6 +41,10 @@ export class WaveFluidRenderer implements ThemeRenderer {
 
     // Spawn ripple on movement
     if (this.prevMouseX >= 0 && Math.random() < 0.3) {
+      // Remove oldest if at limit
+      if (this.ripples.length >= MAX_RIPPLES) {
+        this.ripples.shift();
+      }
       this.ripples.push({
         x: this.mouseX,
         y: this.mouseY,
@@ -47,6 +55,10 @@ export class WaveFluidRenderer implements ThemeRenderer {
       })
 
       for (let i = 0; i < 2; i++) {
+        // Remove oldest if at limit
+        if (this.foamBursts.length >= MAX_FOAM_BURSTS) {
+          this.foamBursts.shift();
+        }
         this.foamBursts.push({
           x: this.mouseX,
           y: this.mouseY,
@@ -184,7 +196,7 @@ export class WaveFluidRenderer implements ThemeRenderer {
 
       ctx.beginPath()
       ctx.arc(foam.x, foam.y, foam.size, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(255,255,255,${foam.life * 0.55})`
+      ctx.fillStyle = `rgba(255, 255, 255, ${foam.life * 0.55})`
       ctx.fill()
     }
 

@@ -6,24 +6,24 @@ const THEME_COLORS: Record<ThemeId, string> = {
   'matrix': '#16C60C',
   'particle-network': '#0078D4',
   'starfield': '#FFFFFF',
-  'aurora': '#16C60C',
   'breathing-light': '#D83B01',
   'clock': '#FFFFFF',
   'fireflies': '#FFD700',
   'wave-fluid': '#00D4AA',
   'neon-geo': '#FF006E',
+  'aurora': '#00FF88',
 }
 
 const THEME_ICONS: Record<ThemeId, string> = {
   'matrix': '⌨️',
   'particle-network': '🔮',
   'starfield': '✨',
-  'aurora': '🌈',
   'breathing-light': '💡',
   'clock': '🕐',
   'fireflies': '🪲',
   'wave-fluid': '🌊',
   'neon-geo': '🔷',
+  'aurora': '🌌',
 }
 
 export function ThemePreviewGrid() {

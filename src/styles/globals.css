@@ -549,6 +549,11 @@
   80% { transform: translateX(2px); }
 }
 
+@keyframes marquee-loop {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
 .animate-marquee-pulse {
   animation: marquee-pulse 2.5s ease-in-out infinite;
 }

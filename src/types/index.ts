@@ -7,6 +7,9 @@ export type DurationOption = 30 | 60 | 120 | null // minutes, null = infinite
 // Marquee scroll modes
 export type MarqueeMode = 'horizontal' | 'vertical' | 'fade' | 'static' | 'typewriter'
 
+// Marquee text transform
+export type TextTransform = 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+
 // Marquee speed presets
 export type MarqueeSpeed = 'slow' | 'medium' | 'fast'
 
@@ -23,7 +26,7 @@ export type ParticleDensity = 'low' | 'medium' | 'high'
 export type ThemeCategory = 'tech' | 'nature' | 'minimal'
 
 // Theme IDs
-export type ThemeId = 'matrix' | 'particle-network' | 'starfield' | 'aurora' | 'breathing-light' | 'clock' | 'fireflies' | 'wave-fluid' | 'neon-geo'
+export type ThemeId = 'matrix' | 'particle-network' | 'starfield' | 'breathing-light' | 'clock' | 'fireflies' | 'wave-fluid' | 'neon-geo' | 'aurora'
 
 // Prevention state
 export interface PreventionState {
@@ -56,6 +59,12 @@ export interface WallpaperState {
 // Clock style
 export type ClockStyle = 'analog' | 'digital'
 
+// Clock size
+export type ClockSize = 'small' | 'medium' | 'large' | 'xlarge'
+
+// Clock position
+export type ClockPosition = 'top' | 'center' | 'bottom'
+
 // Theme state
 export interface ThemeState {
   current: ThemeId
@@ -65,6 +74,11 @@ export interface ThemeState {
   enabled: boolean
   customColor: string
   clockStyle: ClockStyle
+  clockSize: ClockSize
+  clockPosition: ClockPosition
+  // 自定义位置（屏幕百分比 0-100），同时设置时覆盖 clockPosition
+  clockPositionX?: number
+  clockPositionY?: number
 }
 
 // Marquee item
@@ -76,10 +90,29 @@ export interface MarqueeItem {
   glowEnabled: boolean
   glowColor: string
   glowIntensity: number
+  // Typography
+  fontWeight?: number
+  letterSpacing?: number
+  lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
+  textTransform?: TextTransform
+  // Background card
+  bgEnabled?: boolean
+  bgColor?: string
+  bgOpacity?: number
+  borderRadius?: number
+  paddingX?: number
+  paddingY?: number
   // Per-item animation override
   animation?: TextAnimation
+  // Per-item mode/speed override (optional, fallback to fixed defaults)
+  mode?: MarqueeMode
+  speed?: MarqueeSpeed
   // Per-item position override (optional)
   position?: MarqueePosition
+  // 自定义位置（屏幕百分比 0-100），同时设置时覆盖 position
+  positionX?: number
+  positionY?: number
   // Whether this item is enabled
   enabled: boolean
 }
@@ -87,13 +120,6 @@ export interface MarqueeItem {
 export interface MarqueeState {
   enabled: boolean
   items: MarqueeItem[]
-  mode: MarqueeMode
-  speed: MarqueeSpeed
-  position: MarqueePosition
-  // Global animation applied to all items unless overridden
-  animation: TextAnimation
-  // Display strategy
-  displayStrategy: 'single' | 'cycle' | 'all'
 }
 
 // Smart scene
@@ -116,6 +142,11 @@ export interface ThemeConfig {
   density: ParticleDensity
   customColor: string
   opacity: number
+  clockSize?: ClockSize
+  clockPosition?: ClockPosition
+  // 自定义位置（屏幕百分比 0-100），同时设置时覆盖 clockPosition
+  clockPositionX?: number
+  clockPositionY?: number
 }
 
 // Theme preference for dark/light mode

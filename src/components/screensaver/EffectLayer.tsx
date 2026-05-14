@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useAppStore } from '../../stores/appStore'
 import { getThemeRenderer } from '../../themes/registry'
 
@@ -47,6 +48,10 @@ export function EffectLayer() {
       density: theme.density,
       customColor: theme.customColor,
       opacity: theme.opacity,
+      clockSize: theme.clockSize,
+      clockPosition: theme.clockPosition,
+      clockPositionX: theme.clockPositionX,
+      clockPositionY: theme.clockPositionY,
     })
 
     // Sync clock style if applicable
@@ -81,29 +86,55 @@ export function EffectLayer() {
         rendererRef.current = null
       }
     }
-  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity, theme.clockStyle])
+  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity, theme.clockStyle, theme.clockSize, theme.clockPosition])
 
-  // Sync clock style when it changes (without re-creating renderer)
+  // Sync clock style/size/position when they change (without re-creating renderer)
   useEffect(() => {
     const renderer = rendererRef.current
-    if (theme.current === 'clock' && renderer && renderer.setClockStyle) {
-      renderer.setClockStyle(theme.clockStyle)
+    if (theme.current === 'clock' && renderer) {
+      if (renderer.setClockStyle) renderer.setClockStyle(theme.clockStyle)
+      if (renderer.setClockSize) renderer.setClockSize(theme.clockSize)
+      if (renderer.setClockPosition) renderer.setClockPosition(theme.clockPosition)
+      if (renderer.setClockPositionX) renderer.setClockPositionX(theme.clockPositionX)
+      if (renderer.setClockPositionY) renderer.setClockPositionY(theme.clockPositionY)
     }
-  }, [theme.clockStyle, theme.current])
+  }, [theme.clockStyle, theme.clockSize, theme.clockPosition, theme.clockPositionX, theme.clockPositionY, theme.current])
 
   // Resize handler
   useEffect(() => {
+    let frame = 0
+    let unlistenResize: (() => void) | null = null
+    let unlistenScale: (() => void) | null = null
+
     const handleResize = () => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const { width, height } = syncCanvasSize(canvas)
-      if (rendererRef.current) {
-        rendererRef.current.resize(width, height)
-      }
+      if (frame) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const { width, height } = syncCanvasSize(canvas)
+        if (rendererRef.current) {
+          rendererRef.current.resize(width, height)
+        }
+      })
     }
+
     handleResize()
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+
+    getCurrentWindow().onResized(handleResize).then((fn) => {
+      unlistenResize = fn
+    }).catch(() => {})
+
+    getCurrentWindow().onScaleChanged(handleResize).then((fn) => {
+      unlistenScale = fn
+    }).catch(() => {})
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (frame) cancelAnimationFrame(frame)
+      unlistenResize?.()
+      unlistenScale?.()
+    }
   }, [])
 
   return (

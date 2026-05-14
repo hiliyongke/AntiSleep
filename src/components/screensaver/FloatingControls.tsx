@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
 import { useSleepPrevention } from '../../hooks/useSleepPrevention'
 import { closeCurrentAppWindow } from '../../lib/window'
@@ -13,6 +14,15 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
   const marquee = useAppStore((s) => s.marquee)
   const setMarqueeEnabled = useAppStore((s) => s.setMarqueeEnabled)
   const { getRemainingTimeText } = useSleepPrevention()
+  const [time, setTime] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const remainingTimeText = getRemainingTimeText()
+  const currentTimeText = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const handleClose = () => {
     closeCurrentAppWindow().catch(() => {
@@ -29,7 +39,7 @@ export function FloatingControls({ visible }: FloatingControlsProps) {
       <div className="acrylic-light rounded-full px-4 py-2.5 flex items-center gap-3">
         {/* Remaining time */}
         <div className="text-xs tabular-nums pr-2" style={{ color: 'var(--text-secondary)', borderRight: '1px solid var(--border-fluent)' }}>
-          {getRemainingTimeText() || '--:--'}
+          {remainingTimeText || currentTimeText}
         </div>
 
         {/* Theme toggle */}

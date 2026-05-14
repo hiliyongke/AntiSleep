@@ -5,7 +5,7 @@ import { closeCurrentAppWindow } from '../lib/window'
  * Hook for managing screensaver window visibility and floating controls.
  */
 export function useScreensaver() {
-  const [controlsVisible, setControlsVisible] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showControls = useCallback(() => {

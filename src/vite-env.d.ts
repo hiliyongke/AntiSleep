@@ -12,4 +12,6 @@ interface Window {
       currentWindow?: { label?: string }
     }
   }
+  __openScreensaver?: () => Promise<void>
+  __stopScreensaverSession?: () => Promise<void>
 }

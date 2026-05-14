@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../../stores/appStore'
 import { formatCombo } from '../../lib/format'
-import type { PreventionMode, DurationOption, ThemePreference } from '../../types'
+import { getConnectedMonitorCount } from '../../lib/window'
+import type { DurationOption, ThemePreference } from '../../types'
 
 type ShortcutKey = 'shortcutEnable' | 'shortcutDisable' | 'shortcutScreensaver'
 
@@ -13,6 +14,28 @@ export function GeneralSettings() {
   const setExpiryWarningMinutes = useAppStore((s) => s.setExpiryWarningMinutes)
   const setThemePreference = useAppStore((s) => s.setThemePreference)
   const setIdleScreensaverMinutes = useAppStore((s) => s.setIdleScreensaverMinutes)
+  const [monitorCount, setMonitorCount] = useState(1)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const refreshMonitorCount = async () => {
+      const count = await getConnectedMonitorCount()
+      if (!cancelled) {
+        setMonitorCount(Math.max(1, count))
+      }
+    }
+
+    void refreshMonitorCount()
+    const timer = window.setInterval(() => {
+      void refreshMonitorCount()
+    }, 3000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -149,6 +172,35 @@ export function GeneralSettings() {
             <span>关闭</span>
             <span>60分钟</span>
           </div>
+        </div>
+      </div>
+
+      <div className="fluent-divider" />
+
+      {/* Monitor detection */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm" style={{ color: 'var(--text-primary)' }}>显示器适配</p>
+          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+            屏保启动时会自动覆盖所有已连接显示器，并在显示器连接或断开后自动重新适配布局。
+          </p>
+        </div>
+        <div
+          className="rounded-lg px-3 py-2.5 border"
+          style={{
+            backgroundColor: 'var(--bg-subtle)',
+            borderColor: 'var(--border-fluent)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>当前检测到的显示器</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{monitorCount} 台</span>
+          </div>
+          <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
+            {monitorCount > 1
+              ? '多屏已启用，启动屏保时会在所有屏幕同时显示。'
+              : '当前为单屏环境，如后续接入新显示器，屏保会自动扩展到新屏幕。'}
+          </p>
         </div>
       </div>
 

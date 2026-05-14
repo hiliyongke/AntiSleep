@@ -17,4 +17,8 @@ export interface ThemeRenderer {
 
   // Optional: set clock style (for clock theme)
   setClockStyle?(style: 'analog' | 'digital'): void
+  setClockSize?(size: 'small' | 'medium' | 'large' | 'xlarge'): void
+  setClockPosition?(position: 'top' | 'center' | 'bottom'): void
+  setClockPositionX?(x?: number): void
+  setClockPositionY?(y?: number): void
 }

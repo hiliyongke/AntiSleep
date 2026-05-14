@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import {
   type PreventionState,
   type PreventionMode,
@@ -10,10 +11,6 @@ import {
   type ParticleDensity,
   type MarqueeState,
   type MarqueeItem,
-  type MarqueeMode,
-  type MarqueeSpeed,
-  type MarqueePosition,
-  type TextAnimation,
   type SmartSceneState,
   type AppSettings,
   type ThemePreference,
@@ -22,8 +19,6 @@ import {
   startPrevention,
   stopPrevention,
   getPreventionStatus,
-  listProcesses,
-  isCharging,
 } from '../lib/tauri-commands'
 import {
   persistGet,
@@ -39,7 +34,7 @@ import {
   registerShortcut,
   unregisterAllShortcuts,
 } from '../lib/system-services'
-import { openAppWindow } from '../lib/window'
+import { openAppWindow, openScreensaver } from '../lib/window'
 
 // Persistence keys
 const K_SETTINGS = 'settings'
@@ -93,15 +88,14 @@ interface AppStore {
   setThemeEnabled: (enabled: boolean) => void
   setThemeCustomColor: (color: string) => void
   setClockStyle: (style: import('../types').ClockStyle) => void
+  setClockSize: (size: import('../types').ClockSize) => void
+  setClockPosition: (position: import('../types').ClockPosition) => void
+  setClockPositionX: (x?: number) => void
+  setClockPositionY: (y?: number) => void
   resetToFactory: () => Promise<void>
 
   // Marquee actions
   setMarqueeEnabled: (enabled: boolean) => void
-  setMarqueeMode: (mode: MarqueeMode) => void
-  setMarqueeSpeed: (speed: MarqueeSpeed) => void
-  setMarqueePosition: (position: MarqueePosition) => void
-  setMarqueeAnimation: (animation: TextAnimation) => void
-  setMarqueeDisplayStrategy: (strategy: 'single' | 'cycle' | 'all') => void
   addMarqueeItem: (item: MarqueeItem) => void
   updateMarqueeItem: (id: string, updates: Partial<MarqueeItem>) => void
   removeMarqueeItem: (id: string) => void
@@ -159,19 +153,58 @@ const defaultTheme: ThemeState = {
   enabled: true,
   customColor: '#0078D4',
   clockStyle: 'analog',
+  clockSize: 'medium',
+  clockPosition: 'center',
 }
 
 const defaultMarquee: MarqueeState = {
   enabled: false,
   items: [
-    { id: '1', content: 'AI 训练进行中，请勿锁屏', fontSize: 32, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 10, enabled: true },
-    { id: '2', content: '保持专注，持续创造', fontSize: 28, color: '#FFFFFF', glowEnabled: true, glowColor: '#0078D4', glowIntensity: 8, enabled: true },
+    {
+      id: '1',
+      content: 'AI 训练进行中，请勿锁屏',
+      fontSize: 32,
+      color: '#FFFFFF',
+      glowEnabled: true,
+      glowColor: '#0078D4',
+      glowIntensity: 10,
+      fontWeight: 600,
+      letterSpacing: 2,
+      lineHeight: 1.5,
+      textAlign: 'center',
+      bgEnabled: false,
+      bgColor: '#000000',
+      bgOpacity: 30,
+      borderRadius: 12,
+      paddingX: 24,
+      paddingY: 14,
+      enabled: true,
+      mode: 'fade',
+      speed: 'medium',
+    },
+    {
+      id: '2',
+      content: '保持专注，持续创造',
+      fontSize: 28,
+      color: '#FFFFFF',
+      glowEnabled: true,
+      glowColor: '#0078D4',
+      glowIntensity: 8,
+      fontWeight: 500,
+      letterSpacing: 1,
+      lineHeight: 1.4,
+      textAlign: 'center',
+      bgEnabled: false,
+      bgColor: '#000000',
+      bgOpacity: 30,
+      borderRadius: 12,
+      paddingX: 20,
+      paddingY: 12,
+      enabled: true,
+      mode: 'fade',
+      speed: 'medium',
+    },
   ],
-  mode: 'horizontal',
-  speed: 'medium',
-  position: 'center-bottom',
-  animation: 'none',
-  displayStrategy: 'cycle',
 }
 
 const defaultSmartScene: SmartSceneState = {
@@ -202,83 +235,6 @@ function inactivePreventionState(current: PreventionState): PreventionState {
   }
 }
 
-// Smart-scene polling timer
-let smartSceneTimer: ReturnType<typeof setInterval> | null = null
-
-async function pollSmartScene() {
-  const { smartScene, prevention } = useAppStore.getState()
-  const active = prevention.active
-
-  // 1) Charging detection
-  if (smartScene.autoOnCharge) {
-    try {
-      const charging = await isCharging()
-      if (charging && !active) {
-        useAppStore.getState().startPreventionAction(prevention.mode, prevention.duration)
-        return
-      }
-      if (!charging && active && smartScene.processNames.length === 0) {
-        // Only stop if process detection is NOT also active
-        useAppStore.getState().stopPreventionAction()
-        return
-      }
-      // If charging stopped but process detection is active, fall through
-      // to let process detection decide
-      if (!charging && active && smartScene.processNames.length > 0) {
-        // Fall through to process check — don't stop yet
-      }
-    } catch (e) {
-      console.warn('[SmartScene] Charging detection failed:', e)
-    }
-  }
-
-  // 2) Process detection
-  if (smartScene.processNames.length > 0) {
-    try {
-      const running = await listProcesses()
-      const loweredRunning = running.map((n) => n.toLowerCase())
-      const wanted = smartScene.processNames.map((n) => n.toLowerCase())
-      const anyRunning = wanted.some((w) =>
-        loweredRunning.some((r) => r === w || r.includes(w)),
-      )
-      if (anyRunning && !active) {
-        useAppStore.getState().startPreventionAction(prevention.mode, prevention.duration)
-      } else if (!anyRunning && active) {
-        // Stop only if charging is not keeping it active
-        if (!smartScene.autoOnCharge) {
-          useAppStore.getState().stopPreventionAction()
-        } else {
-          // Check charging state before stopping
-          try {
-            const charging = await isCharging()
-            if (!charging) {
-              useAppStore.getState().stopPreventionAction()
-            }
-          } catch {
-            // If we can't check charging, stop to be safe
-            useAppStore.getState().stopPreventionAction()
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[SmartScene] Process detection failed:', e)
-    }
-  }
-}
-
-function ensureSmartSceneLoop() {
-  const { smartScene, settings } = useAppStore.getState()
-  const enabled = smartScene.autoOnCharge || smartScene.processNames.length > 0
-  const interval = (settings.pollIntervalSeconds || 10) * 1000
-  if (enabled && !smartSceneTimer) {
-    void pollSmartScene()
-    smartSceneTimer = setInterval(pollSmartScene, interval)
-  } else if (!enabled && smartSceneTimer) {
-    clearInterval(smartSceneTimer)
-    smartSceneTimer = null
-  }
-}
-
 function applyThemePreference(preference: ThemePreference) {
   const root = document.documentElement
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -305,8 +261,38 @@ async function registerAllShortcuts() {
     if (s.prevention.active) s.stopPreventionAction()
   }, 'disable')
   await registerShortcut(settings.shortcutScreensaver, () => {
-    openAppWindow('screensaver').catch(() => {})
+    openScreensaver().catch(() => {})
   }, 'screensaver')
+}
+
+// Helper: sync smart scene config to Rust backend
+async function syncSmartSceneConfig() {
+  const { smartScene, settings } = useAppStore.getState()
+  const config = {
+    poll_interval_seconds: settings.pollIntervalSeconds,
+    auto_on_charge: smartScene.autoOnCharge,
+    process_names: smartScene.processNames,
+  }
+  try {
+    await invoke('update_smart_scene_config', { config })
+  } catch (e) {
+    console.warn('[SmartScene] Failed to sync config to backend:', e)
+  }
+}
+
+// Helper: restart smart scene monitoring
+async function restartSmartSceneMonitoring() {
+  const { smartScene } = useAppStore.getState()
+  const enabled = smartScene.autoOnCharge || smartScene.processNames.length > 0
+  try {
+    if (enabled) {
+      await invoke('start_smart_scene_monitoring')
+    } else {
+      await invoke('stop_smart_scene_monitoring')
+    }
+  } catch (e) {
+    console.warn('[SmartScene] Failed to restart monitoring:', e)
+  }
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -319,6 +305,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   _hydrated: false,
 
   initApp: async () => {
+    // Request notification permission on app start
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+
     // 1) Hydrate from persistent store
     const [sSettings, sPrevention, sWall, sTheme, sMarq, sSmart] = await Promise.all([
       persistGet<AppSettings>(K_SETTINGS),
@@ -384,7 +375,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // 3) Apply theme preference
     applyThemePreference(get().settings.themePreference)
     // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       const { settings } = get()
       if (settings.themePreference === 'system') {
         applyThemePreference('system')
@@ -394,10 +385,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // 4) Register global shortcuts
     await registerAllShortcuts()
 
-    // 5) Start smart-scene loop if needed
-    ensureSmartSceneLoop()
-
-    // 5) Subscribe to cross-window state changes — reload the affected
+    // 5) Start smart scene monitoring (Rust backend)
+    const smartSceneConfig = get().smartScene
+    if (smartSceneConfig.autoOnCharge || smartSceneConfig.processNames.length > 0) {
+      await invoke('start_smart_scene_monitoring')
+    }
+    
+    // 6) Listen for smart scene events from Rust backend
+    await listen<{ action: string; reason: string }>('smart-scene-status-change', (event) => {
+      const { action } = event.payload
+      if (action === 'start') {
+        const { prevention } = get()
+        get().startPreventionAction(prevention.mode, prevention.duration)
+      } else if (action === 'stop') {
+        get().stopPreventionAction()
+      }
+    })
+    
+    // 7) Subscribe to cross-window state changes — reload the affected
     //    slice when another webview writes to the persistent store.
     await subscribeStateChanges(selfWebviewId, async (key) => {
       switch (key) {
@@ -434,14 +439,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const v = await persistGet<SmartSceneState>(K_SMART)
           if (v) {
             set({ smartScene: { ...defaultSmartScene, ...v } })
-            ensureSmartSceneLoop()
+            // Restart monitoring with new config
+            await restartSmartSceneMonitoring()
           }
           break
         }
       }
     })
 
-    // 7) Listen for prevention toggled from Rust side (tray menu toggle)
+    // 8) Listen for prevention toggled from Rust side (tray menu toggle)
     //    When user clicks "允许休眠/防止休眠" in the tray context menu,
     //    Rust toggles the caffeinate process and emits this event.
     //    Frontend must sync its state accordingly.
@@ -610,6 +616,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = { ...get().theme, clockStyle: style }
     set({ theme: next }); sync(K_THEME, next)
   },
+  setClockSize: (size) => {
+    const next = { ...get().theme, clockSize: size }
+    set({ theme: next }); sync(K_THEME, next)
+  },
+  setClockPosition: (position) => {
+    const next = { ...get().theme, clockPosition: position }
+    set({ theme: next }); sync(K_THEME, next)
+  },
+  setClockPositionX: (x?: number) => {
+    const next = { ...get().theme, clockPositionX: x }
+    set({ theme: next }); sync(K_THEME, next)
+  },
+  setClockPositionY: (y?: number) => {
+    const next = { ...get().theme, clockPositionY: y }
+    set({ theme: next }); sync(K_THEME, next)
+  },
   resetToFactory: async () => {
     // Clear all persisted data
     await Promise.all([
@@ -623,10 +645,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     await applyAutostart(defaultSettings.autoStart)
 
-    if (smartSceneTimer) {
-      clearInterval(smartSceneTimer)
-      smartSceneTimer = null
-    }
+    // Stop smart scene monitoring
+    try {
+      await invoke('stop_smart_scene_monitoring')
+    } catch {}
 
     // Reset state to defaults
     set({
@@ -639,33 +661,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     })
 
     applyThemePreference(defaultSettings.themePreference)
-    ensureSmartSceneLoop()
     await registerAllShortcuts()
   },
 
   // Marquee
   setMarqueeEnabled: (enabled) => {
     const next = { ...get().marquee, enabled }
-    set({ marquee: next }); sync(K_MARQUEE, next)
-  },
-  setMarqueeMode: (mode) => {
-    const next = { ...get().marquee, mode }
-    set({ marquee: next }); sync(K_MARQUEE, next)
-  },
-  setMarqueeSpeed: (speed) => {
-    const next = { ...get().marquee, speed }
-    set({ marquee: next }); sync(K_MARQUEE, next)
-  },
-  setMarqueePosition: (position) => {
-    const next = { ...get().marquee, position }
-    set({ marquee: next }); sync(K_MARQUEE, next)
-  },
-  setMarqueeAnimation: (animation) => {
-    const next = { ...get().marquee, animation }
-    set({ marquee: next }); sync(K_MARQUEE, next)
-  },
-  setMarqueeDisplayStrategy: (displayStrategy) => {
-    const next = { ...get().marquee, displayStrategy }
     set({ marquee: next }); sync(K_MARQUEE, next)
   },
   addMarqueeItem: (item) => {
@@ -703,15 +704,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   // Smart scene
-  setAutoOnCharge: (enabled) => {
+  setAutoOnCharge: async (enabled) => {
     const next = { ...get().smartScene, autoOnCharge: enabled }
     set({ smartScene: next }); sync(K_SMART, next)
-    ensureSmartSceneLoop()
+    // Sync to Rust backend
+    await syncSmartSceneConfig()
+    await restartSmartSceneMonitoring()
   },
-  setProcessNames: (names) => {
+  setProcessNames: async (names) => {
     const next = { ...get().smartScene, processNames: names }
     set({ smartScene: next }); sync(K_SMART, next)
-    ensureSmartSceneLoop()
+    // Sync to Rust backend
+    await syncSmartSceneConfig()
+    await restartSmartSceneMonitoring()
   },
 
   // Settings
@@ -735,16 +740,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = { ...get().settings, expiryWarningMinutes: minutes }
     set({ settings: next }); sync(K_SETTINGS, next)
   },
-  setPollIntervalSeconds: (seconds) => {
+  setPollIntervalSeconds: async (seconds) => {
     const clamped = Math.max(5, Math.min(60, seconds))
     const next = { ...get().settings, pollIntervalSeconds: clamped }
     set({ settings: next }); sync(K_SETTINGS, next)
-    // Restart smart scene loop with new interval
-    if (smartSceneTimer) {
-      clearInterval(smartSceneTimer)
-      smartSceneTimer = null
-    }
-    ensureSmartSceneLoop()
+    // Sync to Rust backend
+    await syncSmartSceneConfig()
+    await restartSmartSceneMonitoring()
   },
   setThemePreference: (themePreference) => {
     const next = { ...get().settings, themePreference }

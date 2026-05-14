@@ -1,11 +1,10 @@
 import { useAppStore } from '../../stores/appStore'
 import { getThemeMetaList } from '../../themes/registry'
-import type { ThemeId, ParticleDensity, ThemeCategory, ClockStyle } from '../../types'
+import type { ThemeId, ParticleDensity, ThemeCategory, ClockStyle, ClockSize, ClockPosition } from '../../types'
 import {
   Terminal,
   Network,
   Sparkles,
-  Rainbow,
   Lightbulb,
   Clock,
   Bug,
@@ -17,24 +16,24 @@ const THEME_COLORS: Record<ThemeId, string> = {
   'matrix': '#16C60C',
   'particle-network': '#0078D4',
   'starfield': '#FFFFFF',
-  'aurora': '#16C60C',
   'breathing-light': '#D83B01',
   'clock': '#FFFFFF',
   'fireflies': '#FFD700',
   'wave-fluid': '#00D4AA',
   'neon-geo': '#FF006E',
+  'aurora': '#00FF88',
 }
 
 const THEME_ICONS: Record<ThemeId, React.ComponentType<{ size?: number | string; color?: string }>> = {
   'matrix': Terminal,
   'particle-network': Network,
   'starfield': Sparkles,
-  'aurora': Rainbow,
   'breathing-light': Lightbulb,
   'clock': Clock,
   'fireflies': Bug,
   'wave-fluid': Waves,
   'neon-geo': Hexagon,
+  'aurora': Sparkles,
 }
 
 const CATEGORY_LABELS: Record<ThemeCategory, string> = {
@@ -52,6 +51,10 @@ export function ThemeSettings() {
   const setThemeDensity = useAppStore((s) => s.setThemeDensity)
   const setThemeCustomColor = useAppStore((s) => s.setThemeCustomColor)
   const setClockStyle = useAppStore((s) => s.setClockStyle)
+  const setClockSize = useAppStore((s) => s.setClockSize)
+  const setClockPosition = useAppStore((s) => s.setClockPosition)
+  const setClockPositionX = useAppStore((s) => s.setClockPositionX)
+  const setClockPositionY = useAppStore((s) => s.setClockPositionY)
 
   const themes = getThemeMetaList()
 
@@ -143,6 +146,101 @@ export function ThemeSettings() {
                   <span>{opt.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Clock size switcher */}
+          <div className="space-y-2">
+            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>时钟大小</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'small' as ClockSize, label: '小' },
+                { value: 'medium' as ClockSize, label: '中' },
+                { value: 'large' as ClockSize, label: '大' },
+                { value: 'xlarge' as ClockSize, label: '特大' },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setClockSize(opt.value)}
+                  className={`capsule flex-1 text-center ${
+                    theme.clockSize === opt.value ? 'capsule-active' : 'capsule-inactive'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Clock position */}
+          <div className="space-y-2">
+            <p className="text-sm" style={{ color: 'var(--text-primary)' }}>时钟位置</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'top' as ClockPosition, label: '上方' },
+                { value: 'center' as ClockPosition, label: '居中' },
+                { value: 'bottom' as ClockPosition, label: '下方' },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setClockPosition(opt.value)
+                    setClockPositionX(undefined)
+                    setClockPositionY(undefined)
+                  }}
+                  className={`capsule flex-1 text-center ${
+                    theme.clockPosition === opt.value && theme.clockPositionX == null && theme.clockPositionY == null
+                      ? 'capsule-active'
+                      : 'capsule-inactive'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+            {/* 自定义坐标 */}
+            <div className="mt-2 pt-2" style={{ borderTop: '1px dashed var(--border-fluent)' }}>
+              <p className="text-xs mb-1.5" style={{ color: 'var(--text-tertiary)' }}>自定义坐标</p>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs w-8" style={{ color: 'var(--text-tertiary)' }}>X</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={theme.clockPositionX ?? 50}
+                    onChange={(e) => setClockPositionX(Number(e.target.value))}
+                    className="fluent-slider flex-1"
+                  />
+                  <span className="text-xs w-10 text-right tabular-nums" style={{ color: 'var(--text-tertiary)' }}>{theme.clockPositionX ?? 50}%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs w-8" style={{ color: 'var(--text-tertiary)' }}>Y</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={theme.clockPositionY ?? 50}
+                    onChange={(e) => setClockPositionY(Number(e.target.value))}
+                    className="fluent-slider flex-1"
+                  />
+                  <span className="text-xs w-10 text-right tabular-nums" style={{ color: 'var(--text-tertiary)' }}>{theme.clockPositionY ?? 50}%</span>
+                </div>
+              </div>
+              {(theme.clockPositionX != null || theme.clockPositionY != null) && (
+                <button
+                  onClick={() => {
+                    setClockPositionX(undefined)
+                    setClockPositionY(undefined)
+                  }}
+                  className="text-xs mt-1.5 transition-colors"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+                >
+                  清除自定义坐标
+                </button>
+              )}
             </div>
           </div>
         </>

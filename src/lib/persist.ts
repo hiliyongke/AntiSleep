@@ -14,8 +14,9 @@ const SYNC_EVENT = 'antisleep://state-changed'
 
 let storePromise: Promise<Store> | null = null
 
-function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+export function isTauri(): boolean {
+  if (typeof window === 'undefined') return false
+  return '__TAURI__' in window
 }
 
 async function getStore(): Promise<Store | null> {

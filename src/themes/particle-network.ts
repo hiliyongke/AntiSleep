@@ -23,6 +23,9 @@ interface PulseField {
   maxLife: number
 }
 
+// Performance constants
+const MAX_PULSE_FIELDS = 15;
+
 export class ParticleNetworkRenderer implements ThemeRenderer {
   readonly id = 'particle-network' as const
   readonly name = '粒子网络'
@@ -54,6 +57,10 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
     this.mouseY = e.clientY
 
     if (Math.random() < 0.08) {
+      // Remove oldest if at limit
+      if (this.pulseFields.length >= MAX_PULSE_FIELDS) {
+        this.pulseFields.shift();
+      }
       this.pulseFields.push({
         x: this.mouseX,
         y: this.mouseY,
@@ -111,7 +118,12 @@ export class ParticleNetworkRenderer implements ThemeRenderer {
     const speed = 0.5 + this.config.speed * 0.8
     this.time += deltaTime * speed
 
+    // Add random pulse field with size limit
     if (Math.random() < 0.012 * speed) {
+      // Remove oldest if at limit
+      if (this.pulseFields.length >= MAX_PULSE_FIELDS) {
+        this.pulseFields.shift();
+      }
       this.pulseFields.push({
         x: Math.random() * w,
         y: Math.random() * h,

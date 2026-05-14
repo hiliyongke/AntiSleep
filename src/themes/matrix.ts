@@ -39,6 +39,12 @@ const CHAR_SETS = {
   brackets: '[]{}()<>',
 }
 
+// Performance optimization constants
+const MAX_GLITCH_BLOCKS = 20;
+const MAX_BURSTS = 30;
+const FRAME_THROTTLE = 2; // Render every Nth frame
+let frameCount = 0;
+
 export class MatrixRenderer implements ThemeRenderer {
   readonly id = 'matrix' as const
   readonly name = '矩阵代码雨'
@@ -103,7 +109,12 @@ export class MatrixRenderer implements ThemeRenderer {
     const color = this.config.customColor || this.defaultColor
     const rgb = this.hexToRgb(color)
 
+    // Add burst with size limit
     if (Math.random() < 0.008 * speed) {
+      // Remove oldest if at limit
+      if (this.bursts.length >= MAX_BURSTS) {
+        this.bursts.shift();
+      }
       this.bursts.push({
         x: Math.random() * this.canvas.width,
         y: Math.random() * this.canvas.height,
@@ -204,8 +215,12 @@ export class MatrixRenderer implements ThemeRenderer {
       }
     }
 
-    // Screen-wide glitch blocks
+    // Screen-wide glitch blocks with size limit
     if (Math.random() < 0.005 * speed) {
+      // Remove oldest if at limit
+      if (this.glitchBlocks.length >= MAX_GLITCH_BLOCKS) {
+        this.glitchBlocks.shift();
+      }
       this.glitchBlocks.push({
         x: Math.random() * this.canvas.width,
         y: Math.random() * this.canvas.height,

@@ -7,7 +7,7 @@ import {
   isGradientWallpaper,
   getGradientCss,
 } from '../../wallpaper/types'
-import type { MarqueeItem, MarqueePosition, TextAnimation, MarqueeSpeed } from '../../types'
+import type { MarqueeItem, MarqueePosition, TextAnimation } from '../../types'
 import { Play, Square, Eye } from 'lucide-react'
 
 /* ─── Wallpaper sub-component ─── */
@@ -92,6 +92,10 @@ function PreviewEffect() {
       density: theme.density,
       customColor: theme.customColor,
       opacity: theme.opacity,
+      clockSize: theme.clockSize,
+      clockPosition: theme.clockPosition,
+      clockPositionX: theme.clockPositionX,
+      clockPositionY: theme.clockPositionY,
     })
     renderer.resize(width, height)
     if (theme.current === 'clock' && renderer.setClockStyle) {
@@ -118,7 +122,19 @@ function PreviewEffect() {
         rendererRef.current = null
       }
     }
-  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.clockStyle])
+  }, [theme.current, theme.speed, theme.density, theme.customColor, theme.opacity, theme.clockStyle, theme.clockSize, theme.clockPosition])
+
+  // 时钟风格/大小/位置变化时实时生效（不重建渲染器）
+  useEffect(() => {
+    const renderer = rendererRef.current
+    if (theme.current === 'clock' && renderer) {
+      if (renderer.setClockStyle) renderer.setClockStyle(theme.clockStyle)
+      if (renderer.setClockSize) renderer.setClockSize(theme.clockSize)
+      if (renderer.setClockPosition) renderer.setClockPosition(theme.clockPosition)
+      if (renderer.setClockPositionX) renderer.setClockPositionX(theme.clockPositionX)
+      if (renderer.setClockPositionY) renderer.setClockPositionY(theme.clockPositionY)
+    }
+  }, [theme.current, theme.clockStyle, theme.clockSize, theme.clockPosition, theme.clockPositionX, theme.clockPositionY])
 
   // Resize canvas to match virtual coordinate space (before CSS transform scaling)
   useEffect(() => {
@@ -148,16 +164,34 @@ function glowTextShadow(item: MarqueeItem): string | undefined {
   return `0 0 ${i * 0.4}px ${color}, 0 0 ${i}px ${color}, 0 0 ${i * 2}px ${color}`
 }
 
-function getPositionClasses(position: MarqueePosition): string {
+/**
+ * 文案自定义位置：positionX/Y 为屏幕百分比（0-100），优先于预设位置
+ */
+function getMarqueePositionStyle(
+  item: MarqueeItem,
+): React.CSSProperties {
+  const px = item.positionX
+  const py = item.positionY
+  if (px !== undefined || py !== undefined) {
+    const style: React.CSSProperties = { position: 'absolute' }
+    if (px !== undefined) style.left = `${px}%`
+    if (py !== undefined) style.top = `${py}%`
+    style.transform = 'translate(-50%, -50%)'
+    return style
+  }
+  return {}
+}
+
+function getPresetPositionClass(position: MarqueePosition): string {
   const map: Record<MarqueePosition, string> = {
-    top: 'top-[12%] left-0 right-0 justify-center',
-    center: 'top-1/2 left-0 right-0 -translate-y-1/2 justify-center',
-    'center-bottom': 'bottom-[28%] left-0 right-0 justify-center',
-    bottom: 'bottom-[10%] left-0 right-0 justify-center',
-    'top-left': 'top-[12%] left-[5%] justify-start',
-    'top-right': 'top-[12%] right-[5%] justify-end',
-    'bottom-left': 'bottom-[10%] left-[5%] justify-start',
-    'bottom-right': 'bottom-[10%] right-[5%] justify-end',
+    top: 'top-[12%] left-0 right-0 justify-center items-start',
+    center: 'top-1/2 left-0 right-0 -translate-y-1/2 justify-center items-center',
+    'center-bottom': 'bottom-[28%] left-0 right-0 justify-center items-end',
+    bottom: 'bottom-[10%] left-0 right-0 justify-center items-end',
+    'top-left': 'top-[12%] left-[5%] justify-start items-start',
+    'top-right': 'top-[12%] right-[5%] justify-end items-start',
+    'bottom-left': 'bottom-[10%] left-[5%] justify-start items-end',
+    'bottom-right': 'bottom-[10%] right-[5%] justify-end items-end',
   }
   return map[position] || map['center-bottom']
 }
@@ -173,7 +207,37 @@ function getAnimationClass(animation: TextAnimation): string {
   }
 }
 
-function useTypewriter(text: string, speed: MarqueeSpeed, active: boolean) {
+function buildTextStyle(item: MarqueeItem): React.CSSProperties {
+  const textShadow = glowTextShadow(item)
+  return {
+    fontSize: `${item.fontSize}px`,
+    color: item.color,
+    textShadow,
+    fontWeight: item.fontWeight ?? 500,
+    letterSpacing: item.letterSpacing ? `${item.letterSpacing}px` : undefined,
+    lineHeight: item.lineHeight ?? 1.4,
+    textAlign: item.textAlign ?? 'center',
+    textTransform: item.textTransform ?? 'none',
+  }
+}
+
+function buildCardStyle(item: MarqueeItem): React.CSSProperties | undefined {
+  if (!item.bgEnabled) return undefined
+  const bgOpacity = item.bgOpacity ?? 30
+  const hex = item.bgColor ?? '#000000'
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, ${bgOpacity / 100})`,
+    borderRadius: `${item.borderRadius ?? 8}px`,
+    padding: `${item.paddingY ?? 12}px ${item.paddingX ?? 20}px`,
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+  }
+}
+
+function useTypewriter(text: string, speed: string, active: boolean) {
   const [display, setDisplay] = useState('')
   const [showCursor, setShowCursor] = useState(true)
   const idxRef = useRef(0)
@@ -199,87 +263,91 @@ function useTypewriter(text: string, speed: MarqueeSpeed, active: boolean) {
   return { display, showCursor }
 }
 
-function PreviewSingleItem({
-  item, mode, speed, globalAnimation,
-}: {
-  item: MarqueeItem
-  mode: import('../../types').MarqueeMode
-  speed: MarqueeSpeed
-  globalAnimation: TextAnimation
-}) {
+function PreviewSingleItem({ item }: { item: MarqueeItem }) {
+  const mode = item.mode ?? 'fade'
+  const speed = item.speed ?? 'medium'
   const durationMap = { slow: '15s', medium: '8s', fast: '4s' }
-  const textShadow = glowTextShadow(item)
-  const animation = item.animation ?? globalAnimation
+  const animation = item.animation ?? 'none'
   const animClass = getAnimationClass(animation)
-  const textStyle: React.CSSProperties = {
-    fontSize: `${item.fontSize}px`,
-    color: item.color,
-    textShadow,
-    fontWeight: 500,
-  }
+  const textStyle = buildTextStyle(item)
+  const cardStyle = buildCardStyle(item)
+  const { display, showCursor } = useTypewriter(item.content, speed, mode === 'typewriter')
 
-  if (mode === 'typewriter') {
-    const { display, showCursor } = useTypewriter(item.content, speed, true)
+  const wrap = (children: React.ReactNode) => {
+    if (cardStyle) {
+      return (
+        <div className={`inline-block ${animClass}`} style={cardStyle}>
+          <div style={textStyle}>{children}</div>
+        </div>
+      )
+    }
     return (
-      <div className={`text-center ${animClass}`} style={textStyle}>
-        {display}
-        <span className="inline-block w-[2px] ml-0.5 align-middle" style={{ height: `${item.fontSize * 0.8}px`, backgroundColor: item.color, opacity: showCursor ? 1 : 0, transition: 'opacity 0.1s' }} />
+      <div className={`${animClass}`} style={textStyle}>
+        {children}
       </div>
     )
   }
-  if (mode === 'static') return <div className={`text-center ${animClass}`} style={textStyle}>{item.content}</div>
+
+  if (mode === 'typewriter') {
+    return wrap(
+      <>
+        {display}
+        <span className="inline-block w-[2px] ml-0.5 align-middle" style={{ height: `${item.fontSize * 0.8}px`, backgroundColor: item.color, opacity: showCursor ? 1 : 0, transition: 'opacity 0.1s' }} />
+      </>
+    )
+  }
+  if (mode === 'static') return wrap(item.content)
   if (mode === 'horizontal') {
+    const gap = Math.max(48, Math.round(item.fontSize * 1.5))
+    const segment = cardStyle ? (
+      <div className="inline-block" style={cardStyle}>
+        <div style={textStyle}>{item.content}</div>
+      </div>
+    ) : (
+      <div style={textStyle}>{item.content}</div>
+    )
+
     return (
-      <div className="overflow-hidden max-w-[90%]">
-        <div className={`whitespace-nowrap ${animClass}`} style={{ ...textStyle, animation: `marquee-horizontal ${durationMap[speed]} linear infinite` }}>
-          {item.content}
+      <div className="overflow-hidden" style={{ maxWidth: 'min(92%, calc(100% - 32px))' }}>
+        <div
+          className={`inline-flex items-center min-w-max ${animClass}`}
+          style={{
+            animation: `marquee-loop ${durationMap[speed]} linear infinite`,
+            willChange: 'transform',
+            transform: 'translate3d(0, 0, 0)',
+          }}
+        >
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="shrink-0 whitespace-nowrap" style={{ paddingRight: `${gap}px` }}>
+              {segment}
+            </div>
+          ))}
         </div>
       </div>
     )
   }
-  return <div className={`text-center animate-fade-in ${animClass}`} style={textStyle}>{item.content}</div>
+  return wrap(item.content)
 }
 
 function PreviewMarquee() {
   const marquee = useAppStore((s) => s.marquee)
-  const [currentIndex, setCurrentIndex] = useState(0)
   const enabledItems = useMemo(() => marquee.items.filter((i) => i.enabled), [marquee.items])
-
-  useEffect(() => {
-    if (marquee.displayStrategy === 'all') return
-    if (enabledItems.length <= 1) return
-    if (marquee.mode === 'horizontal') return
-    const speedMap = { slow: 8000, medium: 5000, fast: 3000 }
-    const interval = speedMap[marquee.speed] || 5000
-    const timer = setInterval(() => setCurrentIndex((i) => (i + 1) % enabledItems.length), interval)
-    return () => clearInterval(timer)
-  }, [marquee.mode, marquee.speed, enabledItems.length, marquee.displayStrategy])
 
   if (!marquee.enabled || !enabledItems.length) return null
 
-  if (marquee.displayStrategy === 'all') {
-    return (
-      <>
-        {enabledItems.map((item) => {
-          const pos = item.position ?? marquee.position
-          const classes = getPositionClasses(pos)
-          return (
-            <div key={item.id} className={`absolute z-20 flex pointer-events-none ${classes}`}>
-              <PreviewSingleItem item={item} mode={marquee.mode} speed={marquee.speed} globalAnimation={marquee.animation} />
-            </div>
-          )
-        })}
-      </>
-    )
-  }
-
-  const item = enabledItems[currentIndex]
-  if (!item) return null
-  const classes = getPositionClasses(marquee.position)
   return (
-    <div className={`absolute z-20 flex pointer-events-none ${classes}`}>
-      <PreviewSingleItem item={item} mode={marquee.mode} speed={marquee.speed} globalAnimation={marquee.animation} />
-    </div>
+    <>
+      {enabledItems.map((item) => {
+        const customStyle = getMarqueePositionStyle(item)
+        const pos = item.position ?? 'center-bottom'
+        const presetClass = Object.keys(customStyle).length === 0 ? getPresetPositionClass(pos) : ''
+        return (
+          <div key={item.id} className={`absolute z-20 flex pointer-events-none ${presetClass}`} style={customStyle}>
+            <PreviewSingleItem item={item} />
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -335,7 +403,7 @@ export function PreviewSettings({ compact = false }: { compact?: boolean }) {
   const previewContent = isPlaying ? (
     <>
       <PreviewWallpaper />
-      <PreviewEffect />
+      <PreviewEffect key={theme.current} />
       <PreviewMarquee />
       <PreviewInfoOverlay />
 

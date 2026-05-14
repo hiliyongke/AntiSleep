@@ -39,6 +39,9 @@ interface Constellation {
   phase: number
 }
 
+// Performance constants
+const MAX_SHOOTING_STARS = 5;
+
 export class StarfieldRenderer implements ThemeRenderer {
   readonly id = 'starfield' as const
   readonly name = '星空'
@@ -234,8 +237,10 @@ export class StarfieldRenderer implements ThemeRenderer {
       constellation.points.forEach((index, pointIndex) => {
         const star = this.stars[index]
         if (!star) return
-        if (pointIndex === 0) ctx.moveTo(star.x, star.y)
-        else ctx.lineTo(star.x, star.y)
+        const sx = star.x + Math.sin(this.time * 0.04 + star.twinklePhase) * star.z * 0.5
+        const sy = star.y + Math.cos(this.time * 0.025 + star.twinklePhase) * star.z * 0.3
+        if (pointIndex === 0) ctx.moveTo(sx, sy)
+        else ctx.lineTo(sx, sy)
       })
       ctx.strokeStyle = this.starColor(constellation.alpha * pulse)
       ctx.lineWidth = 0.8
@@ -244,6 +249,10 @@ export class StarfieldRenderer implements ThemeRenderer {
 
     // Shooting stars with curved trails and head glow
     if (Math.random() < 0.006 * speed) {
+      // Remove oldest if at limit
+      if (this.shootingStars.length >= MAX_SHOOTING_STARS) {
+        this.shootingStars.shift();
+      }
       const startSide = Math.random() < 0.5 ? 'top' : 'left'
       this.shootingStars.push({
         x: startSide === 'top' ? Math.random() * this.canvas.width : 0,

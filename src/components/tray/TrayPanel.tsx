@@ -5,7 +5,7 @@ import { ToggleButton } from './ToggleButton'
 import { DurationSelector } from './DurationSelector'
 import { ThemePreviewGrid } from './ThemePreviewGrid'
 import { MarqueePreview } from './MarqueePreview'
-import { closeCurrentAppWindow, openAppWindow } from '../../lib/window'
+import { closeCurrentAppWindow, openAppWindow, openScreensaver } from '../../lib/window'
 import { Settings, Monitor, X } from 'lucide-react'
 
 export function TrayPanel() {
@@ -17,7 +17,7 @@ export function TrayPanel() {
   }
 
   const handleScreensaver = () => {
-    openAppWindow('screensaver').catch((err) => console.error('[TrayPanel] open screensaver failed:', err))
+    openScreensaver().catch((err) => console.error('[TrayPanel] open screensaver failed:', err))
   }
 
   const handleClose = () => {

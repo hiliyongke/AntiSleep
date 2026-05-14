@@ -115,7 +115,7 @@ export default {
           '100%': { textShadow: '0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor' },
         },
         'marquee-horizontal': {
-          '0%': { transform: 'translateX(100%)' },
+          '0%': { transform: 'translateX(100vw)' },
           '100%': { transform: 'translateX(-100%)' },
         },
         'marquee-vertical': {
